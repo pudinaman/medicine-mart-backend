@@ -10,6 +10,45 @@ const webhookEventSchema = new mongoose.Schema({
 
 
 
+
+const transactionDetails = new Schema({
+  id: { type: String, required: false },
+  entity: { type: String, required: false },
+  amount: { type: Number, required: false },
+  currency: { type: String, required: false },
+  status: { type: String, required: false },
+  order_id: { type: String, required: false },
+  invoice_id: { type: String, required: false },
+  international: { type: Boolean, required: false },
+  method: { type: String, required: false },
+  amount_refunded: { type: Number, required: false },
+  refund_status: { type: String, required: false },
+  captured: { type: Boolean, required: false },
+  description: { type: String, required: false },
+  card_id: { type: String, required: false },
+  bank: { type: String, required: false },
+  wallet: { type: String, required: false },
+  vpa: { type: String, required: false },
+  email: { type: String, required: false },
+  contact: { type: String, required: false },
+  fee: { type: Number, required: false },
+  tax: { type: Number, required: false },
+  error_code: { type: String, required: false },
+  error_description: { type: String, required: false },
+  error_source: { type: String, required: false },
+  error_step: { type: String, required: false },
+  error_reason: { type: String, required: false },
+  acquirer_data: {
+    bank_transaction_id: { type: String, required: false }
+  },
+  created_at: { type: Date, default: Date.now },
+  event: String,
+      payload: mongoose.Schema.Types.Mixed,
+  bonusDeduct: { type: String, required: false },
+  balanceDeduct: { type: String, required: false },
+});
+
+
 const User = mongoose.model(
   "users",
   new mongoose.Schema({
@@ -19,7 +58,15 @@ const User = mongoose.model(
       required: false,
       unique: false,
     },
-
+    transactionHistory: {
+      deposit: [transactionDetails],
+      // depositfail: [transactionDetails],
+      contestfee: [transactionDetails],
+      winningAmount: [transactionDetails],
+      total_balance: [transactionDetails],
+      bonus: [transactionDetails],
+      withdrawal: [transactionDetails],
+    },
     firebaseUid: String,
     username: {
       type: String,
@@ -30,7 +77,7 @@ const User = mongoose.model(
       type: String,
       deault: '',
       required: false,
-      // unique: true,
+      unique: true,
       sparse: true,
     },
 
@@ -235,6 +282,7 @@ const User = mongoose.model(
       {
         _id: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
         orderId: String,
+        productIds: [String],
         order_date: { type: Date, default: Date.now }
       }
     ],

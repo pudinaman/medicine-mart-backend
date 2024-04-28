@@ -13,10 +13,17 @@ module.exports = function (app) {
  
 //Admin Routes
 app.post('/products', [authJwt.verifyToken, authJwt.isAdmin], productController.createProduct);
+app.get('/products/popularProducts', productController.getProductsByMaxTotalOrders);
 
-app.get('/products', authJwt.verifyToken, productController.getAllProducts);
-app.get('/products/:id', authJwt.verifyToken, productController.getProductById);
+app.get('/products',  productController.getAllProducts);
+app.get('/products/:id',  productController.getProductById);
 app.patch('/products/:id', authJwt.verifyToken, productController.updateProduct);
 app.delete('/products/:id', authJwt.verifyToken, productController.deleteProduct);
- 
+
+app.get('/products/similar/:category',  productController.getSimilarProducts);
+
+app.post('/products/:id/reviews', productController.postReview);
+app.get('/products/:id/reviews', productController.getReviews);
+
+
 };

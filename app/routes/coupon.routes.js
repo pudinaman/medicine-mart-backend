@@ -18,5 +18,7 @@ app.get('/getCoupon/:coupon_id', [authJwt.verifyToken, authJwt.isAdmin], couponC
 app.delete('/deleteCoupon/:coupon_id', [authJwt.verifyToken, authJwt.isAdmin], couponController.deleteCoupon);
 app.put('/updateCoupon/:coupon_id', [authJwt.verifyToken, authJwt.isAdmin], couponController.updateCoupon);
 
+app.get('/coupon/:code', couponController.getCouponByCode);
+
 };
 

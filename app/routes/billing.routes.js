@@ -17,4 +17,5 @@ app.get('/billing/:user_id', authJwt.verifyToken, billingController.getBillingBy
 // app.put('/billing/:user_id', authJwt.verifyToken, billingController.updateBilling);
 app.delete('/billing/:user_id', authJwt.verifyToken, billingController.deleteBilling);
  
+app.get('/user/:user_id/billing/:billing_id', billingController.getBillingById);
 };

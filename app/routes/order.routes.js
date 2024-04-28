@@ -18,7 +18,8 @@ app.get('/orders', [authJwt.verifyToken, authJwt.isAdmin], orderController.getAl
 
 //User Routes
 app.post('/orders', authJwt.verifyToken, orderController.createOrder);
-app.get('/orders/:user_id/:order_id', authJwt.verifyToken, orderController.getOrder);
+app.get('/orders/:user_id/:order_id',  orderController.getOrder);
 app.get('/userOrders/:user_id', authJwt.verifyToken, orderController.getAllOrdersByUser);
  
+
 };

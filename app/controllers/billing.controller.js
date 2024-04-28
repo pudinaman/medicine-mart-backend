@@ -90,3 +90,26 @@ exports.deleteBilling = async (req, res) => {
         res.status(500).json({ error: 'Error deleting billing information' });
     }
 };
+
+exports.getBillingById = async (req, res) => {
+    try {
+        const user_id = req.params.user_id;
+        const billing_id = req.params.billing_id;
+        const user = await Billing.findOne({ user_id });
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const billing = user.billings.id(billing_id);
+
+        if (!billing) {
+            return res.status(404).json({ error: 'Billing information not found' });
+        }
+
+        res.json(billing);
+    } catch (error) {
+        console.error('Error fetching billing:', error);
+        res.status(500).json({ error: 'Error fetching billing information' });
+    }
+};

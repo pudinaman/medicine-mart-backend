@@ -63,7 +63,7 @@ exports.authController = async (req, res) => {
       user.email = email;
       user.emailVerified = true;
       await user.save();
-      return res.status(200).json({ message: 'User signed in successfully', token, user_id: user.id });
+      return res.status(200).json({ message: 'User signed in successfully', accessToken: token, user_id: user.id, username: user.username, email: user.email });
     }
     
 
@@ -107,10 +107,11 @@ exports.authController = async (req, res) => {
     newUser.firebaseUid = firebaseUid;
     newUser.accessToken = token;
     
+    
     authController.sendOTP(email, otp);
     await newUser.save();
     
-    res.status(200).json({ message: 'User created and signed in successfully', token, user_id: newUser.id });
+    res.status(200).json({ message: 'User created and signed in successfully', accessToken: token, user_id: newUser.id, username: newUser.username, email: newUser.email });
   } catch (error) {
     // await slackLogger('Error verifying mobile number', error.message, error, null, webHookURL);
     console.error('Error signing up:', error);

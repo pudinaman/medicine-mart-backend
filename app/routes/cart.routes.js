@@ -19,7 +19,7 @@ app.put('/cart', authJwt.verifyToken, cartController.updateCart);
 
 app.get('/cart/:userId', authJwt.verifyToken, cartController.getCart);
 app.post('/addCart', authJwt.verifyToken, cartController.addToCart);
-app.delete('/deleteCart/:userId', authJwt.verifyToken, cartController.removeFromCart);
+app.delete('/removeFromCart/:userId', authJwt.verifyToken, cartController.removeFromCart);
 app.delete('/cart/:userId', cartController.deleteCart);
 
 };

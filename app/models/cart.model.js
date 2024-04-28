@@ -23,6 +23,8 @@ const cartSchema = new mongoose.Schema({
         price: Number,
         actual_price: Number,
         sale_price: Number,
+        selected_size: String,
+        product_image: String
     }],
     bill: {
         type: Number,

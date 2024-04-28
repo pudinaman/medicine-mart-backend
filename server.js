@@ -32,7 +32,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/', (req, res) => {
-    res.json({ message: "Welcome to the application." });
+    res.json({ message: "Welcome Wayumart Backend" });
 });
 
 // routes
@@ -108,7 +108,7 @@ exports.sendOTPMobile = async (mobileNumber, user_id) => {
     });
 
 
-const PORT = 3000;
+const PORT = 4000;
 app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}.`);
 });

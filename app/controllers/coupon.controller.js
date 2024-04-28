@@ -54,3 +54,15 @@ exports.deleteCoupon = async (req, res) => {
     res.status(500).send(err);
   }
 };
+
+exports.getCouponByCode = async (req, res) => {
+  try {
+    const coupon = await Coupon.findOne({ code: req.params.code });
+    if (!coupon) {
+      return res.status(404).send({ message: 'Coupon not found' });
+    }
+    res.send({ discount: coupon.discount });
+  } catch (err) {
+    res.status(500).send(err);
+  }
+};

@@ -63,14 +63,16 @@ module.exports = function (app) {
   app.post('/api/:user_id/bank-details', authJwt.verifyToken, controller.addBankDetails);
 
 
-  app.post('/webhook', async (req, res) => {
-    try {
-      const response = await controller.handleWebhookEvent(req, res);
-      res.status(200).json(response);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  });
+  // app.post('/webhook', async (req, res) => {
+  //   try {
+  //     const response = await controller.handleWebhookEvent(req, res);
+  //     res.status(200).json(response);
+  //   } catch (error) {
+  //     res.status(500).json({ message: error.message });
+  //   }
+  // });
+
+  app.post('/webhook', controller.handleWebhookEvent);
 
   app.post('/signupWithMobile', controller.signupWithMobile);
   app.post('/verifyMobileOTP', authJwt.verifyToken, controller.verifyMobileOTP);

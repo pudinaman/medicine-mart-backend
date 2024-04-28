@@ -481,7 +481,12 @@ exports.signup = async (req, res) => {
   user.roles = roles.map((role) => role._id);
         await user.save();
 
-        res.status(200).send({ message: "User was registered successfully!" });
+        res.status(200).send({
+          message: "User was registered successfully!",
+          id: user._id,
+          accessToken: token,
+          username: user.username
+        });
       } else {
         const role = await Role.findOne({ name: "user" });
 
@@ -614,7 +619,8 @@ exports.signin = (req, res) => {
       res.status(200).send({
         message: `${user.username} logged in successfully!`,
         id: user._id,
-        accessToken: token
+        accessToken: token,
+        username: user.username
       });
     })
     .catch(async (err) => {
@@ -1519,8 +1525,8 @@ exports.handleWebhookEvent = async function (req, res) {
 
       if (error_code == null || error_code == "null") {
         user.transactionHistory.total_balance.push({ ...entityData, amount: amount / 100 });
-        user.depositedAmount += parseFloat(amount) / 100;
-        user.balance += parseFloat(amount) / 100;
+        // user.depositedAmount += parseFloat(amount) / 100;
+        // user.balance += parseFloat(amount) / 100;
         console.log(`Amount added to balance: ${amount}`);
       }
       await user.save();

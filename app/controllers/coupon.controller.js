@@ -45,16 +45,17 @@ exports.updateCoupon = async (req, res) => {
 
 exports.deleteCoupon = async (req, res) => {
   try {
-    const coupon = await Coupon.findByIdAndRemove(req.params.coupon_id);
-    if (!coupon) {
+    // console.log(req.params.coupon_id); 
+    const result = await Coupon.deleteOne({ _id: req.params.coupon_id });
+    if (result.n === 0) { // if no document was deleted
       return res.status(404).send({ message: 'Coupon not found' });
     }
     res.send({ message: 'Coupon deleted successfully' });
   } catch (err) {
+    console.log(err);
     res.status(500).send(err);
   }
 };
-
 exports.getCouponByCode = async (req, res) => {
   try {
     const coupon = await Coupon.findOne({ code: req.params.code });

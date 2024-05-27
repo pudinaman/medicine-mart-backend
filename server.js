@@ -44,6 +44,7 @@ require('./app/routes/billing.routes')(app);
 require('./app/routes/firebaseAuth.routes')(app);
 require('./app/routes/coupon.routes')(app);
 require('./app/routes/checkout.routes')(app);
+require('./app/routes/appointment.routes')(app);
 
 
 exports.sendOTPMobile = async (mobileNumber, user_id) => {

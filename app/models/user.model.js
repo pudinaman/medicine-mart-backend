@@ -293,6 +293,7 @@ const User = mongoose.model(
         discount: Number
       }
     ],
+    appointments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' }],
   })
 );
 

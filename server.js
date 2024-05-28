@@ -7,10 +7,10 @@ const db = require('./app/models');
 const User = require('./app/models/user.model');
 const admin = require('firebase-admin');
 const Role = db.role;
-const serviceAccount = require('./khurd-54065-firebase-adminsdk-gu85g-48fa269ebe.json');
+const serviceAccount = require('./wayumart-9e794-firebase-adminsdk-gx86d-425bd46890.json');
 require('dotenv').config();
-db.mongoose.connect(`mongodb://${dbConfig.HOST}:${dbConfig.PORT}/${dbConfig.DB}`)
-  // db.mongoose.connect(process.env.MONGODB_URI)
+// db.mongoose.connect(`mongodb://${dbConfig.HOST}:${dbConfig.PORT}/${dbConfig.DB}`)
+  db.mongoose.connect(process.env.MONGODB_URI)
     .then(console.log('Connected to MongoDB'))
     .catch(async (err) => {
         console.log('Error connecting to MongoDB', err);

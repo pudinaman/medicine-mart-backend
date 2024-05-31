@@ -994,7 +994,6 @@ exports.getUser = async (req, res) => {
     //   return res.status(200).send(JSON.parse(nodeCache.get(cacheKey)));
     // } else {
     const user = await User.findById(userId)
-      .populate("fantasyTeam")
       .select("-transactionHistory");
     if (!user) {
       return res.status(404).send({ message: "User not found" });
@@ -1007,13 +1006,6 @@ exports.getUser = async (req, res) => {
     // Now, user.fantasyTeams should contain the populated FantasyTeam objects
   } catch (error) {
     console.error("Error getting user:", error);
-    await slackLogger(
-      "Error getting user",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });

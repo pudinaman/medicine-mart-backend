@@ -8,7 +8,7 @@ const upload = multer({ storage: storage });
 
 module.exports = function (app) {
   app.use(function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", "https://wayumart-9e794.web.app");
+    res.header("Access-Control-Allow-Origin", "http://127.0.0.1:5500");
 
     res.header(
       "Access-Control-Allow-Headers",

@@ -5,7 +5,7 @@ const User = db.user;
 const Role = db.role;
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
-const crypto = require("crypto");
+const Billing = require("../models/billing.model");
 let jwt = require("jsonwebtoken");
 let bcrypt = require("bcryptjs");
 const { sendOTPMobile } = require("../../server.js");
@@ -21,21 +21,21 @@ let mailTransport;
     const password = template.parameters.smtpPass.defaultValue.value;
     // const user = 'waytofreemind@gmail.com';
     // const password = 'Ram@85272';
-    console.log('user, password: ',user, password)
+    console.log("user, password: ", user, password);
     mailTransport = nodemailer.createTransport({
       host: "smtpout.secureserver.net",
       secure: true,
       secureConnection: false,
       tls: {
-        ciphers: 'SSLv3'
+        ciphers: "SSLv3",
       },
       requireTLS: true,
       port: 465,
       debug: true,
       auth: {
         user: user,
-        pass: password
-      }
+        pass: password,
+      },
     });
   } catch (err) {
     console.error("Error fetching Remote Config template:", err);
@@ -126,13 +126,7 @@ exports.verifyMobile = async (req, res) => {
     }
   } catch (error) {
     console.error(`Error verifying mobile number: ${error}`);
-    await slackLogger(
-      "Error verifying mobile number",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -149,22 +143,22 @@ const initializeMailTransport = async () => {
     const password = template.parameters.smtpPass?.defaultValue.value;
     // const user = 'waytofreemind@gmail.com';
     // const password = 'Ram@85272';
-    console.log('user, password: ', user, password);
+    console.log("user, password: ", user, password);
 
     mailTransport = nodemailer.createTransport({
       host: "smtpout.secureserver.net",
       secure: true,
       secureConnection: false,
       tls: {
-        ciphers: 'SSLv3'
+        ciphers: "SSLv3",
       },
       requireTLS: true,
       port: 465,
       debug: true,
       auth: {
         user: user,
-        pass: password
-      }
+        pass: password,
+      },
     });
     console.log("Mail transport initialized successfully.");
   } catch (err) {
@@ -173,38 +167,37 @@ const initializeMailTransport = async () => {
   }
 };
 
-
 // Call the initialization function and export the promise
 const mailTransportPromise = initializeMailTransport();
-
 
 // Send OTP to the user's email
 exports.sendOTP = (email, otp) => {
   return new Promise((resolve, reject) => {
-    mailTransportPromise.then(() => {
-      const mailOptions = {
-        from: "noreply@khud11.com",
-        to: email,
-        subject: "OTP Verification",
-        text: `Your OTP for email verification is ${otp}`,
-      };
+    mailTransportPromise
+      .then(() => {
+        const mailOptions = {
+          from: "noreply@khud11.com",
+          to: email,
+          subject: "OTP Verification",
+          text: `Your OTP for email verification is ${otp}`,
+        };
 
-      mailTransport.sendMail(mailOptions, function (error, info) {
-        if (error) {
-          console.error("Error sending email:", error);
-          reject(error); // Reject the promise if there's an error
-        } else {
-          console.log(`Email sent: ${info.response}`);
-          resolve(info); // Resolve the promise if OTP is sent successfully
-        }
+        mailTransport.sendMail(mailOptions, function (error, info) {
+          if (error) {
+            console.error("Error sending email:", error);
+            reject(error); // Reject the promise if there's an error
+          } else {
+            console.log(`Email sent: ${info.response}`);
+            resolve(info); // Resolve the promise if OTP is sent successfully
+          }
+        });
+      })
+      .catch((error) => {
+        console.error("Mail transport is not initialized:", error);
+        reject(new Error("Mail transport is not initialized."));
       });
-    }).catch((error) => {
-      console.error("Mail transport is not initialized:", error);
-      reject(new Error("Mail transport is not initialized."));
-    });
   });
 };
-
 
 exports.verifyOTP = async (req, res) => {
   try {
@@ -237,13 +230,7 @@ exports.verifyOTP = async (req, res) => {
     }
   } catch (error) {
     console.error("Error verifying OTP: ", error);
-    await slackLogger(
-      "Error verifying OTP",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -274,18 +261,6 @@ exports.signupWithMobile = async (req, res) => {
         phoneNumber,
         // password: bcrypt.hashSync(password, 8),
         createdAt: Date.now(),
-        // balance: 0,
-        // referralCount: 0,
-        // winContest: 0,
-        // lostContest: 0,
-        // totalContest: 0,
-        // matchesWin: 0,
-        // matchesLost: 0,
-        // totalMatches: 0,
-        // winningAmount: 0,
-        // amountUnlisted: 0,
-        // discountBonus: 0,
-        // depositedAmount: 0,
         adhaarVerified: "unverified",
         panVerified: "unverified",
         bankVerified: "unverified",
@@ -308,13 +283,11 @@ exports.signupWithMobile = async (req, res) => {
           .map((role) => role._id);
         await user.save();
 
-        res
-          .status(200)
-          .send({
-            message: "User was registered successfully!",
-            user_id: user._id,
-            accessToken: user.accessToken,
-          });
+        res.status(200).send({
+          message: "User was registered successfully!",
+          user_id: user._id,
+          accessToken: user.accessToken,
+        });
       } else {
         const role = await Role.findOne({ name: "user" });
 
@@ -323,24 +296,16 @@ exports.signupWithMobile = async (req, res) => {
         await user.save();
         await sendOTPMobile(phoneNumber.toString(), user._id);
 
-        res
-          .status(200)
-          .send({
-            message: "User was registered successfully! but not yet verified.",
-            user_id: user._id,
-            accessToken: user.accessToken,
-          });
+        res.status(200).send({
+          message: "User was registered successfully! but not yet verified.",
+          user_id: user._id,
+          accessToken: user.accessToken,
+        });
       }
     }
   } catch (error) {
     console.error("Error saving user:", error);
-    await slackLogger(
-      "Error saving user",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res.status(500).send({ message: "Internal Server Error", error: error });
   }
 };
@@ -366,13 +331,7 @@ exports.sentOTPMobile = async (req, res) => {
     }
   } catch (error) {
     console.error("Error sending OTP: ", error);
-    await slackLogger(
-      "Error sending OTP",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -398,13 +357,11 @@ exports.verifyMobileOTP = async (req, res) => {
           if (user.otp == otp) {
             user.mobileVerified = true;
             await user.save();
-            return res
-              .status(200)
-              .send({
-                message: "User's mobile number verified successfully!",
-                user_id: user._id,
-                accessToken: user.accessToken,
-              });
+            return res.status(200).send({
+              message: "User's mobile number verified successfully!",
+              user_id: user._id,
+              accessToken: user.accessToken,
+            });
           } else {
             return res.status(400).send({ message: "OTP is not correct." });
           }
@@ -412,13 +369,11 @@ exports.verifyMobileOTP = async (req, res) => {
           if (user.otp == otp) {
             user.loggedIn = true;
             await user.save();
-            return res
-              .status(200)
-              .send({
-                message: "User is verified and logged in successfully!",
-                user_id: user._id,
-                accessToken: user.accessToken,
-              });
+            return res.status(200).send({
+              message: "User is verified and logged in successfully!",
+              user_id: user._id,
+              accessToken: user.accessToken,
+            });
           } else if (user.otp !== otp) {
             return res.status(400).send({ message: "OTP is not correct." });
           }
@@ -427,13 +382,7 @@ exports.verifyMobileOTP = async (req, res) => {
     }
   } catch (error) {
     console.error("Error verifying mobile OTP: ", error);
-    await slackLogger(
-      "Error verifying mobile OTP",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -465,13 +414,11 @@ exports.loginWithMobile = async (req, res) => {
         user.loggedIn = true;
       }
       await user.save();
-      return res
-        .status(200)
-        .send({
-          message: "OTP sent successfully!",
-          user_id: user._id,
-          accessToken: user.accessToken,
-        });
+      return res.status(200).send({
+        message: "OTP sent successfully!",
+        user_id: user._id,
+        accessToken: user.accessToken,
+      });
     }
   } catch (error) {
     if (error.response) {
@@ -488,13 +435,7 @@ exports.loginWithMobile = async (req, res) => {
         ) {
           // Handle the specific error scenario
           console.error("Spamming detected. Please try again later.");
-          await slackLogger(
-            "Spamming detected",
-            "Spamming detected. Please try again later.",
-            error,
-            null,
-            webHookURL
-          );
+
           res
             .status(400)
             .send({ message: "Spamming detected. Please try again later." });
@@ -512,13 +453,7 @@ exports.loginWithMobile = async (req, res) => {
     } else {
       // Something happened in setting up the request that triggered an Error
       console.error("Error logging in user: ", error);
-      await slackLogger(
-        "Error logging in user",
-        error.message,
-        error,
-        null,
-        webHookURL
-      );
+
       res
         .status(500)
         .send({ message: "Internal Server Error", error: error.message });
@@ -544,13 +479,7 @@ exports.logoutWithMobile = async (req, res) => {
     }
   } catch (error) {
     console.error("Error logging out user: ", error);
-    await slackLogger(
-      "Error logging out user",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -580,13 +509,7 @@ exports.resendMobileOTP = async (req, res) => {
     }
   } catch (error) {
     console.error("Error resending mobile OTP: ", error);
-    await slackLogger(
-      "Error resending mobile OTP",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -616,24 +539,11 @@ exports.signup = async (req, res) => {
         email,
         password: bcrypt.hashSync(password, 8),
         createdAt: Date.now(),
-        // balance: 0,
-        // referralCount: 0,
-        // winContest: 0,
-        // lostContest: 0,
-        // totalContest: 0,
-        // matchesWin: 0,
-        // matchesLost: 0,
-        // totalMatches: 0,
-        // winningAmount: 0,
-        // amountUnlisted: 0,
-        // discountBonus: 0,
-        // depositedAmount: 0,
         adhaarVerified: "unverified",
         panVerified: "unverified",
         bankVerified: "unverified",
         referral: req?.body?.referral || null,
         otp,
-        // userReferral,
         phoneNumber: null,
         loggedIn: true,
       });
@@ -641,12 +551,10 @@ exports.signup = async (req, res) => {
       const token = jwt.sign({ id: user.id }, config.secret, {
         algorithm: "HS256",
         allowInsecureKeySizes: true,
-        expiresIn: 86400 * 365,
       });
 
       user.accessToken = token;
       if (req.body.roles) {
-        // user.roles = await Role.findOne({ name: { $in: req.body.roles } }).lead().map((role) => role._id);
         const roles = await Role.find({ name: { $in: req.body.roles } });
         user.roles = roles.map((role) => role._id);
         await user.save();
@@ -661,13 +569,6 @@ exports.signup = async (req, res) => {
         const role = await Role.findOne({ name: "user" });
 
         user.roles = [role._id];
-
-        // await exports.sendOTP(req.body.email, otp);
-        // // webhooks: send message to slack channel
-        // await user.save();
-
-        // res.status(200).send({ message: "User was registered successfully! but not yet verified.", user: user });
-
         // Call sendOTP with a callback function
         exports
           .sendOTP(req.body.email, otp)
@@ -676,12 +577,10 @@ exports.signup = async (req, res) => {
             // Save the user and send the response
             try {
               await user.save(); // Wait for user save operation
-              res
-                .status(200)
-                .send({
-                  message: "OTP sent to your email, use it for verification!",
-                  user: user,
-                });
+              res.status(200).send({
+                message: "OTP sent to your email, use it for verification!",
+                user: user,
+              });
             } catch (err) {
               console.error("Error saving user:", err);
               res
@@ -699,13 +598,7 @@ exports.signup = async (req, res) => {
     }
   } catch (error) {
     console.error("Error saving user:", error);
-    await slackLogger(
-      "Error saving user",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res.status(500).send({ message: "Internal Server Error", error: error });
   }
 };
@@ -729,13 +622,7 @@ exports.sendOTPEmail = async (req, res) => {
     }
   } catch (error) {
     console.log("Error sending OTP: ", error);
-    await slackLogger(
-      "Error sending OTP",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -767,13 +654,7 @@ exports.resendOtpEmail = async (req, res) => {
     }
   } catch (error) {
     console.error("Error resending OTP: ", error);
-    await slackLogger(
-      "Error resending OTP",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -790,7 +671,7 @@ exports.signin = (req, res) => {
       if (!user) {
         return res.status(404).send({ message: "User Not found." });
       }
-      console.log('user.password: ',user.password);
+      console.log("user.password: ", user.password);
       const passwordIsValid = bcrypt.compareSync(
         req.body.password,
         user.password
@@ -806,7 +687,6 @@ exports.signin = (req, res) => {
       const token = jwt.sign({ id: user.id }, config.secret, {
         algorithm: "HS256",
         allowInsecureKeySizes: true,
-        expiresIn: 86400, // 24 hours
       });
 
       // const authorities = user.roles.map(role => `ROLE_${role.name.toUpperCase()}`);
@@ -826,13 +706,6 @@ exports.signin = (req, res) => {
     })
     .catch(async (err) => {
       console.error("Error:", err);
-      await slackLogger(
-        "Error signing in the user.",
-        err.message,
-        err,
-        null,
-        webHookURL
-      );
       res
         .status(500)
         .send({ message: "Internal Server Error", err: err.message });
@@ -875,13 +748,7 @@ exports.updateUser = async (req, res) => {
       .json({ message: "User updated successfully!", user_id: userId });
   } catch (error) {
     console.error(`Error updating user: ${error}`);
-    await slackLogger(
-      "Error updating user",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -894,11 +761,9 @@ exports.resetPassword = async (req, res) => {
 
     // Check if all required fields are provided
     if (!email || !current_password || !new_password) {
-      return res
-        .status(400)
-        .send({
-          message: "email, current_password, and new_password are required.",
-        });
+      return res.status(400).send({
+        message: "email, current_password, and new_password are required.",
+      });
     }
 
     // Find the user based on the provided user_id
@@ -925,13 +790,7 @@ exports.resetPassword = async (req, res) => {
     return res.status(200).send({ message: "Password reset successfully." });
   } catch (error) {
     console.error("Error resetting password: ", error);
-    await slackLogger(
-      "Error resetting password",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     return res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -968,13 +827,7 @@ exports.setPassword = async (req, res) => {
     return res.status(200).send({ message: "Password set successfully." });
   } catch (error) {
     console.error("Error setting password: ", error);
-    await slackLogger(
-      "Error setting password",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     return res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
@@ -987,20 +840,10 @@ exports.getUser = async (req, res) => {
     if (!userId) {
       return res.status(400).send({ message: "userId is required" });
     }
-    // Use findById to get user data and populate the fantasyTeams field
-    // const cacheKey = `user_${userId}`;
-    // if (nodeCache.has(cacheKey)) {
-    //   console.log(`User Fetched Successfully`);
-    //   return res.status(200).send(JSON.parse(nodeCache.get(cacheKey)));
-    // } else {
-    const user = await User.findById(userId)
-      .select("-transactionHistory");
+    const user = await User.findById(userId).select("-transactionHistory");
     if (!user) {
       return res.status(404).send({ message: "User not found" });
     }
-    // nodeCache.set(cacheKey, JSON.stringify(user), 300);
-    // console.log(user.fantasyTeam);
-    // console.log(`User Fetched Successfully`);
     return res.status(200).send(user);
     // }
     // Now, user.fantasyTeams should contain the populated FantasyTeam objects
@@ -1023,13 +866,7 @@ exports.getAllUsersId = async (req, res) => {
     return res.status(200).json(userIds);
   } catch (error) {
     console.error("Error retrieving user IDs:", error);
-    await slackLogger(
-      "Error retrieving user IDs",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -1064,126 +901,7 @@ exports.uploadProfilePicture = async (req, res) => {
       .json({ message: "Profile picture uploaded successfully" });
   } catch (error) {
     console.error("Error uploading profile picture:", error);
-    await slackLogger(
-      "Error uploading profile picture",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
-    return res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
-  }
-};
 
-exports.uploadAdhaar = async (req, res) => {
-  try {
-    console.log(req.body);
-    console.log(req.body.length);
-    const name = req.body.name;
-    const dob = req.body.dob;
-    const adhaarNumber = req.body.adhaarNumber;
-    const adhaarFrontImage = req.body.adhaarFrontImage;
-    const adhaarBackImage = req.body.adhaarBackImage;
-    if (!name || !dob || !adhaarNumber) {
-      return res
-        .status(400)
-        .json({ message: "Name, DOB, and Aadhaar number are required" });
-    }
-    if (!req.params.user_id) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
-    const userId = req.params.user_id;
-
-    // Use await to execute the query and get the user instance
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    // const cacheKey = `user_${userId}`;
-    // nodeCache.del(cacheKey);
-    const time = Date.now(); // current time in milliseconds
-    // Save Aadhaar image to database
-    user.adhaarFrontImage = adhaarFrontImage;
-    user.adhaarBackImage = adhaarBackImage;
-    user.adhaarNumber = req.body.adhaarNumber;
-    user.updatedAt = time;
-    user.name = name;
-    user.dob = dob;
-    (user.adhaarVerified = "in progress"), await user.save();
-    //  nodeCache.set(cacheKey, JSON.stringify(user), 300);  // Cache for 5 minutes
-
-    return res
-      .status(200)
-      .json({
-        message:
-          "Aadhaar uploaded successfully and is currently under verification.",
-      });
-  } catch (error) {
-    console.error("Error uploading Aadhaar picture:", error);
-    await slackLogger(
-      "Error uploading Aadhaar picture",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
-    return res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
-  }
-};
-
-exports.uploadPan = async (req, res) => {
-  try {
-    const time = Date.now(); // current time in milliseconds
-    const name = req.body.name;
-    const dob = req.body.dob;
-    const panNumber = req.body.panNumber;
-    const panPhoto = req.body.panPhoto;
-    if (!name || !dob || !panNumber) {
-      return res
-        .status(400)
-        .json({ message: "Name, DOB, and Pan number are required" });
-    }
-    if (!req.params.user_id) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
-    const userId = req.params.user_id;
-    // Use await to execute the query and get the user instance
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // const cacheKey = `user_${userId}`;
-    // nodeCache.del(cacheKey);
-    // Save Aadhaar image to database
-    user.panPhoto = panPhoto;
-    user.panNumber = req.body.panNumber;
-    user.updatedAt = time;
-    user.name = name;
-    user.dob = dob;
-    (user.panVerified = "in progress"), await user.save();
-    // nodeCache.set(cacheKey, JSON.stringify(user), 300);  // Cache for 5 minutes
-
-    return res
-      .status(200)
-      .json({
-        message:
-          "Pan uploaded successfully and is currently under verification.",
-      });
-  } catch (error) {
-    console.error("Error uploading Pan picture:", error);
-    await slackLogger(
-      "Error uploading Pan picture",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -1208,13 +926,7 @@ exports.logout = async (req, res) => {
     return res.status(200).json({ message: "User logged out successfully" });
   } catch (error) {
     console.error("Error logging out user:", error);
-    await slackLogger(
-      "Error logging out user",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -1248,296 +960,12 @@ exports.updatePersonalInfo = async (req, res) => {
     return res.status(200).json(updatedFields);
   } catch (error) {
     console.error("Error updating user:", error);
-    await slackLogger(
-      "Error updating user",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
-// exports.referAndEarn = async (req, res) => {
-//   try {
-//     const userId = req.params.user_id;
-//     if (userId) {
-//       return res.status(400).json({ message: 'User ID is required' });
-//     }
-//     const user = await User.findById(userId);
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-//     // Check if the user already has a referral code assigned
-//     if (user.referral) {
-//       return res.status(400).json({ message: 'User already has a referral code assigned' });
-//     }
-//     if (!req.body.referral) {
-//       return res.status(400).json({ message: 'Referral code is required' });
-//     }
-//     const referralCode = req.body.referral;
-//     const referralUser = await User.findOne({ userReferral: referralCode });
-//     if (!referralUser) {
-//       return res.status(404).json({ message: 'Referral code not found' });
-//     }
-//     if (referralCode === user.userReferral) {
-//       return res.status(404).json({ message: 'Self Referral Code not allowed' });
-//     }
-//     // Save the referral code to the user who used it
-//     user.referral = referralCode;
-//     referralUser.referralCount += 1;
-//     const bonusAmount = 100;
-//     referralUser.bonus = referralUser.bonus || 0;
-//     referralUser.bonus += bonusAmount;
-//     user.bonus = user.bonus || 0;
-//     user.bonus += bonusAmount;
-//     const referenceId = generateRandomReferenceId();
-//     const bonusTransaction = {
-//       id: referenceId,
-//       transaction_type: 'bonus',
-//       amount: bonusAmount,
-//       entity: 'Bonus',
-//       description: `Bonus Earned From Referral`,
-//       timestamp: new Date()
-//     };
-//     // referralUser.transactionHistory.total_balance.push(bonusTransaction);
-//     referralUser.transactionHistory.bonus.push(bonusTransaction);
-//     user.transactionHistory.bonus.push(bonusTransaction);
-//     // user.transactionHistory.total_balance.push(bonusTransaction);
-//     await Promise.all([referralUser.save(), user.save()]);
-//     return res.status(200).json({ message: 'Referral code found for the user', Bonus: `${bonusAmount}` });
-//   } catch (error) {
-//     console.error('Error updating referral code:', error);
-//     await slackLogger('Error updating referral code', error.message, error, null, webHookURL);
-//     return res.status(500).json({ message: 'Internal Server Error', error: error.message });
-//   }
-// };
-
-// function generateRandomReferenceId() {
-//   try {
-//     const prefix = 'REF_';
-//     const randomString = crypto.randomBytes(5).toString('hex');
-//     return prefix + randomString;
-//   } catch (err) {
-//     console.error('Error generating random reference ID:', err);
-//     return null;
-//   }
-// }
-
-// exports.addBalanceToAccount = async (req, res) => {
-//   try {
-//     const userId = req.params.user_id;
-//     const {
-//       id,
-//       entity,
-//       amount,
-//       currency,
-//       status,
-//       order_id,
-//       invoice_id,
-//       international,
-//       method,
-//       amount_refunded,
-//       refund_status,
-//       captured,
-//       description,
-//       card_id,
-//       bank,
-//       wallet,
-//       vpa,
-//       email,
-//       contact,
-//       fee,
-//       tax,
-//       error_code,
-//       error_description,
-//       error_source,
-//       error_step,
-//       error_reason,
-//       acquirer_data,
-//       created_at
-//     } = req.body;
-
-//     // Validate the request body
-//     if (!id || !entity || !amount || !currency || !status) {
-//       return res.status(400).json({ message: 'Missing required fields' });
-//     }
-//     // Find the user by userId
-//     const user = await User.findById(userId);
-
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-//     // Log the transaction
-//     const transaction = {
-//       id: id,
-//       entity: entity,
-//       amount: parseFloat(amount) / 100,
-//       currency: currency,
-//       status,
-//       order_id: order_id,
-//       invoice_id: invoice_id,
-//       international: international,
-//       method: method,
-//       amount_refunded: parseFloat(amount_refunded) / 100,
-//       refund_status: refund_status,
-//       captured: captured,
-//       description: description,
-//       card_id: card_id,
-//       bank: bank,
-//       wallet: wallet,
-//       vpa: vpa,
-//       email: email,
-//       contact: contact,
-//       fee: fee,
-//       tax: tax,
-//       error_code: error_code,
-//       error_description: error_description,
-//       error_source: error_source,
-//       error_step: error_step,
-//       error_reason: error_reason,
-//       acquirer_data: acquirer_data,
-//       created_at: created_at || Date.now(), // If created_at is not provided, use the current date
-//     };
-
-//     // // Push transaction to appropriate subarray based on transaction type
-//     // if (status == 'failed') {
-//     //   user.transactionHistory.depositfail.push(transaction);
-//     // } else {
-//     //   user.transactionHistory.depositsuccess.push(transaction);
-//     // }
-
-//     user.transactionHistory.deposit.push(transaction);
-
-//     // If the transaction status is not "failed", add the amount to the user's balance
-//     if (status !== 'failed') {
-//       user.transactionHistory.total_balance.push(transaction);
-//       user.depositedAmount += parseFloat(amount) / 100;
-//       user.balance += parseFloat(amount) / 100;
-//       console.log(`Amount added to balance: ${amount}`);
-//     }
-
-//     // Save the updated user
-//     await user.save();
-//     console.log(`Balance updated successfully. New balance: ${user.balance}`);
-
-//     // Log the payment method used
-//     console.log(`Payment method used: ${method}`);
-
-//     // Send a success response
-//     return res.status(200).json({ message: 'Balance updated successfully', balance: user.balance });
-//   } catch (error) {
-//     console.error('Error updating balance:', error);
-//     await slackLogger('Error verifying mobile number', error.message, error, null, webHookURL);
-//     return res.status(500).json({ message: 'An error occurred' });
-//   }
-// };
-
-// exports.withdrawalRequest = async (req, res) => {
-//   try {
-//     const userId = req.params.user_id;
-//     const { id, entity, amount, currency, status, order_id, invoice_id, international, method, amount_refunded, refund_status, captured, description, card_id, bank, wallet, vpa, email, contact, fee, tax, error_code, error_description, error_source, error_step, error_reason, acquirer_data, created_at } = req.body;
-
-//     // Validate the request body
-//     if (!id || !entity || !amount) {
-//       return res.status(400).json({ message: 'Missing required fields' });
-//     }
-
-//     if (amount === 0) {
-//       return res.status(400).json({ message: 'Amount cannot be zero' });
-//     }
-//     // Find the user by userId
-//     const user = await User.findById(userId);
-
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-
-//     // Check if the user has enough balance
-//     if (amount > user.balance) {
-//       return res.status(400).json({ message: 'Insufficient balance' });
-//     }
-
-//     // Subtract the amount from the user's balance
-//     user.balance -= amount;
-
-//     // Log the withdrawal transaction
-//     const transaction = {
-//       id: id,
-//       entity: entity,
-//       amount: -parseFloat(amount),
-//       currency: currency,
-//       status: status,
-//       order_id: order_id,
-//       invoice_id: invoice_id,
-//       international: international,
-//       method: method,
-//       amount_refunded: amount_refunded,
-//       refund_status: refund_status,
-//       captured: captured,
-//       description: description,
-//       card_id: card_id,
-//       bank: bank,
-//       wallet: wallet,
-//       vpa: vpa,
-//       email: email,
-//       contact: contact,
-//       fee: fee,
-//       tax: tax,
-//       error_code: error_code,
-//       error_description: error_description,
-//       error_source: error_source,
-//       error_step: error_step,
-//       error_reason: error_reason,
-//       acquirer_data: acquirer_data,
-//       created_at: created_at || Date.now() // If created_at is not provided, use the current date
-//     };
-//     user.transactionHistory.withdrawal.push(transaction);
-//     user.transactionHistory.total_balance.push(transaction);
-//     // Save the updated user
-//     await user.save();
-
-//     // Log the payment method used
-//     console.log(`Payment method used for withdrawal: ${method}`);
-
-//     // Send a success response
-//     return res.status(200).json({ message: 'Withdrawal request sent successfully', balance: user.balance });
-//   } catch (error) {
-//     console.error(error);
-//     await slackLogger('Withdrawal request error', error.message, error, null, webHookURL);
-//     return res.status(500).json({ message: 'An error occurred' });
-//   }
-// };
-
-// exports.playingOverview = async (req, res) => {
-//   try {
-//     const userId = req.params.user_id;
-//     if (!userId) { return res.status(400).json({ message: 'userId is required' }); }
-//     // Find the user by userId
-//     const user = await User.findById(userId);
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-//     // Send User's winContest, lostConstest. totalContest, matchesWin, matchesLost, totalMatches as response
-//     return res.status(200).json({
-//       user_id: user._id,
-//       winContest: user.winContest,
-//       lostContest: user.lostContest,
-//       totalContest: user.totalContest,
-//       matchesWin: user.matchesWin,
-//       matchesLost: user.matchesLost,
-//       totalMatches: user.totalMatches,
-//     });
-
-//   } catch (error) {
-//     console.error(error);
-//     await slackLogger('playingOverview error', error.message, error, null, webHookURL);
-//     return res.status(500).json({ message: 'An error occurred' });
-//   }
-// };
 
 exports.generateReferralCode = async function () {
   try {
@@ -1559,185 +987,10 @@ exports.generateReferralCode = async function () {
     return referralCode;
   } catch (err) {
     console.log(err);
-    await slackLogger(
-      "Error generating referral code",
-      err.message,
-      err,
-      null,
-      webHookURL
-    );
+
     return null;
   }
 };
-
-// exports.getAllUsersSortedByMaxTotalPoints = async (req, res) => {
-//   try {
-//     // Aggregate to find the maximum total_points for each user
-//     const userMaxPoints = await FantasyTeam.aggregate([
-//       {
-//         $group: {
-//           _id: "$user_id",
-//           maxTotalPoints: { $max: "$total_points" },
-//         },
-//       },
-//     ]);
-
-//     // Sort users by their maximum total points in descending order
-//     const sortedUsers = await Promise.all(
-//       userMaxPoints.map(async (userPoints) => {
-//         const user = await User.findById(userPoints._id);
-//         return {
-//           userId: userPoints._id,
-//           // userName: user.username, // Change this based on your user schema
-//           maxTotalPoints: userPoints.maxTotalPoints,
-//         };
-//       })
-//     );
-
-//     // Sort the users in descending order of maxTotalPoints
-//     sortedUsers.sort((a, b) => b.maxTotalPoints - a.maxTotalPoints);
-
-//     res.status(200).json(sortedUsers);
-//   } catch (error) {
-//     console.error('Error getting and sorting users:', error);
-//     res.status(500).json({ message: 'Internal Server Error', error: error.message });
-//   }
-// };
-
-// exports.getMaxTotalPointsByUserAndMatch = async (req, res) => {
-//   const matchId = req.params.match_id;
-
-//   try {
-//     const maxTotalPointsByUserAndMatch = await FantasyTeam.aggregate([
-//       // Match only documents with the specified match_id
-//       { $match: { match_id: matchId } },
-//       // Group by user_id and find the maximum total_points
-//       {
-//         $group: {
-//           _id: {
-//             user_id: "$user_id",
-//             team_id: "$_id",
-//           },
-//           maxTotalPoints: { $max: "$total_points" },
-//         },
-//       },
-//       // Sort by maxTotalPoints in descending order
-//       { $sort: { maxTotalPoints: -1 } },
-//       // Optionally, add a $lookup stage to fetch user details
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "_id.user_id",
-//           foreignField: "_id",
-//           as: "user",
-//         },
-//       },
-
-//       {
-//         $project: {
-//           _id: 0,
-//           user_id: "$_id.user_id",
-//           team_id: "$_id.team_id",
-//           username: { $arrayElemAt: ["$user.username", 0] },
-//           maxTotalPoints: 1,
-//         },
-//       },
-//     ]);
-
-//     res.status(200).json(maxTotalPointsByUserAndMatch);
-//   } catch (error) {
-//     console.error('Error fetching max total points by user and match:', error);
-//     res.status(500).json({ message: 'Internal Server Error', error: error.message });
-//   }
-// };
-
-// exports.getMaxTotalPointsByUserAndContest = async (req, res) => {
-//   const contestId = req.params.contest_id;
-
-//   try {
-//     const maxTotalPointsByUserAndContest = await FantasyTeam.aggregate([
-//       // Match only documents with the specified contest_id
-//       { $match: { contest_id: contestId } },
-//       // Group by user_id and find the maximum total_points
-//       {
-//         $group: {
-//           _id: {
-//             user_id: "$user_id",
-//             team_id: "$_id",
-//           },
-//           maxTotalPoints: { $max: "$total_points" },
-//         },
-//       },
-//       // Sort by maxTotalPoints in descending order
-//       { $sort: { maxTotalPoints: -1 } },
-
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "_id.user_id",
-//           foreignField: "_id",
-//           as: "user",
-//         },
-//       },
-
-//       {
-//         $project: {
-//           _id: 0,
-//           user_id: "$_id.user_id",
-//           team_id: "$_id.team_id",
-//           username: { $arrayElemAt: ["$user.username", 0] },
-//           maxTotalPoints: 1,
-//         },
-//       },
-//     ]);
-
-//     res.json(maxTotalPointsByUserAndContest);
-//   } catch (error) {
-//     console.error('Error fetching max total points by user and contest:', error);
-//     res.status(500).json({ message: 'Internal Server Error', error: error.message });
-//   }
-// };
-
-// exports.getUserDetailsById = async (req, res) => {
-//   const userId = req.params.user_id;
-
-//   try {
-//     // Find the user by userId
-//     const user = await User.findById(userId).populate('fantasyTeam');
-
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-
-//     res.json(user);
-//     console.log(`User Details Fetched Successfully: ${JSON.stringify(user)}`);
-//   } catch (error) {
-//     console.error('Error getting user details:', error);
-//     res.status(500).json({ message: 'Internal Server Error', error: error.message });
-//   }
-// };
-
-// exports.getTransactionHistory = async (req, res) => {
-//   try {
-//     const userId = req.params.user_id; // Get the user ID from the request parameters
-//     if (!userId) {
-//       return res.status(400).json({ message: 'User ID is required' });
-//     }
-//     // Find the user by ID
-//     const user = await User.findById(userId).select('transactionHistory');
-
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-
-//     // Return the user's transaction history
-//     return res.status(200).json({ transactionHistory: user.transactionHistory });
-//   } catch (error) {
-//     console.error('Error fetching transaction history:', error);
-//     await slackLogger('Error fetching transaction history', error.message, error, null, webHookURL);
-//     return res.status(500).json({ message: 'Internal Server Error', error: error.message });
-//   }
-// };
 
 exports.addBankDetails = async (req, res) => {
   try {
@@ -1774,24 +1027,16 @@ exports.addBankDetails = async (req, res) => {
       // Save the updated user
       await user.save();
 
-    return res
-      .status(200)
-      .json({
-        message: "Bank details added successfully",
-        bankHolderName: user.accountHolderName,
-        bankAccountNumber: user.bankAccountNumber,
-        ifscCode: user.ifscCode,
-        bankVerified: user.bankVerified,
-      });
+    return res.status(200).json({
+      message: "Bank details added successfully",
+      bankHolderName: user.accountHolderName,
+      bankAccountNumber: user.bankAccountNumber,
+      ifscCode: user.ifscCode,
+      bankVerified: user.bankVerified,
+    });
   } catch (error) {
     console.error("Error adding bank details:", error);
-    await slackLogger(
-      "Error adding bank details",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -1840,7 +1085,6 @@ exports.addBankDetails = async (req, res) => {
 //     return res.status(200).json({ transactionHistory });
 //   } catch (error) {
 //     console.error('Error fetching transaction history:', error);
-//     await slackLogger('Error fetching transaction history', error.message, error, null, webHookURL);
 //     return res.status(500).json({ message: 'Internal Server Error', error: error.message });
 //   }
 // };
@@ -1882,13 +1126,6 @@ exports.handleWebhookEvent = async function (req, res) {
       .status(200)
       .json({ message: "Webhook event received and stored successfully" });
   } catch (error) {
-    await slackLogger(
-      "Error processing paymentwebhook event",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
     console.error("Error processing paymentwebhook event:", error);
     throw new Error("Internal server error");
   }
@@ -1919,13 +1156,7 @@ async function generateSecurePassword() {
     return password;
   } catch (err) {
     console.log(err);
-    await slackLogger(
-      "Error generating secure password",
-      err.message,
-      err,
-      null,
-      webHookURL
-    );
+
     return null;
   }
 }
@@ -1973,54 +1204,29 @@ exports.forgotPassword = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in forgot password:", error);
-    await slackLogger(
-      "Error in forgot password",
-      error.message,
-      error,
-      null,
-      webHookURL
-    );
+
     return res
       .status(500)
       .send({ message: "Internal Server Error", error: error.message });
   }
 };
 
-exports.getAdhaarDetails = async (req, res) => {
+exports.changeUsername = async (req, res) => {
   try {
-    const user = await User.findById(req.params.user_id)
-      .select(
-        "name dob adhaarNumber adhaarFrontImage adhaarBackImage adhaarVerified"
-      )
-      .lean();
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (req?.params) {
+      const { userId } = req.params;
+      const { username } = req.body;
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      user.username = username;
+      await user.save();
+      return res.status(200).json({ message: "Username changed successfully" });
     }
-
-    res.status(200).json(user);
   } catch (error) {
-    console.error("Error retrieving user details:", error);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
-  }
-};
-
-exports.getPanDetails = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.user_id)
-      .select("name dob panNumber panPhoto panVerified")
-      .lean();
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json(user);
-  } catch (error) {
-    console.error("Error retrieving user details:", error);
-    res
+    console.error("Error changing username:", error);
+    return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
   }

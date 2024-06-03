@@ -113,4 +113,6 @@ module.exports = function (app) {
   app.post("/resendMobileOTP", authJwt.verifyToken, controller.resendMobileOTP);
   app.post("/setPassword", authJwt.verifyToken, controller.setPassword);
   app.post("/forgot-password", controller.forgotPassword);
+
+  app.post("/addReview", controller.addReview);
 };

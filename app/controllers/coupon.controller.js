@@ -10,6 +10,15 @@ exports.createCoupon = async (req, res) => {
   }
 };
 
+// a dummy request object for createCoupon
+// {
+//   "name": "New Year Sale",
+//   "code": "NEWYEAR",
+//   "discount": 20,
+//   "expiryDate": "2022-01-01",
+//   "couponUsedLimit": 100
+// }
+
 exports.getAllCoupons = async (req, res) => {
   try {
     const coupons = await Coupon.find();

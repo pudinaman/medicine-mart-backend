@@ -7,6 +7,8 @@ const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const Billing = require("../models/billing.model");
 let jwt = require("jsonwebtoken");
+const Product = require('../models/product.model');
+
 let bcrypt = require("bcryptjs");
 const { sendOTPMobile } = require("../../server.js");
 const multiavatar = require("@multiavatar/multiavatar");
@@ -21,7 +23,6 @@ let mailTransport;
     const password = template.parameters.smtpPass.defaultValue.value;
     // const user = 'waytofreemind@gmail.com';
     // const password = 'Ram@85272';
-    console.log("user, password: ", user, password);
     mailTransport = nodemailer.createTransport({
       host: "smtpout.secureserver.net",
       secure: true,
@@ -135,16 +136,9 @@ exports.verifyMobile = async (req, res) => {
 
 const initializeMailTransport = async () => {
   try {
-    console.log("Fetching Remote Config template...");
     const template = await remoteConfig.getTemplate();
-    console.log("Remote Config template fetched successfully.");
-
     const user = template.parameters.smtpEmail?.defaultValue.value;
     const password = template.parameters.smtpPass?.defaultValue.value;
-    // const user = 'waytofreemind@gmail.com';
-    // const password = 'Ram@85272';
-    console.log("user, password: ", user, password);
-
     mailTransport = nodemailer.createTransport({
       host: "smtpout.secureserver.net",
       secure: true,
@@ -160,7 +154,6 @@ const initializeMailTransport = async () => {
         pass: password,
       },
     });
-    console.log("Mail transport initialized successfully.");
   } catch (err) {
     console.error("Error fetching or initializing mail transport:", err);
     throw new Error("Failed to initialize mail transport.");
@@ -1231,3 +1224,49 @@ exports.changeUsername = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
+exports.addReview = async (req, res) => {
+  try {
+    if (req?.body) {
+      const { user_id, review, product_id, rating } = req.body;
+      if (!user_id || !review || !product_id || !rating) {
+        return res
+          .status(400)
+          .send({ message: "user_id, review, product_id, and rating are required" });
+      }
+      const user = await User.findById(user_id);
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+      const product = await Product.findById(product_id);
+      if (!product) {
+        return res.status(404).send({ message: "Product not found" });
+      } 
+
+      // find if user has already reviewed the product
+      const userReview = product.reviews.find(review => review.user == user_id);
+      if (userReview) {
+        return res.status(400).send({ message: "User has already reviewed the product" });
+      }
+      const reviewData = {
+        user: user_id,
+        username: user.username,
+        avatar: user.avatar,
+        review_text: review,
+        rating: rating,
+        date: Date.now()
+      }
+
+      product.reviews.push(reviewData);
+      await product.save();
+
+      return res.status(200).send({message: "Review Added Successfullly!"});
+      
+    }
+  } catch (error) {
+    console.error("Error adding review:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+}

@@ -7,6 +7,7 @@ const db = require('./app/models');
 const User = require('./app/models/user.model');
 const admin = require('firebase-admin');
 const Role = db.role;
+const Product = db.product;
 const serviceAccount = require('./wayumart-9e794-firebase-adminsdk-gx86d-425bd46890.json');
 require('dotenv').config();
 // db.mongoose.connect(`mongodb://${dbConfig.HOST}:${dbConfig.PORT}/${dbConfig.DB}`)
@@ -47,6 +48,22 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get('/', (req, res) => {
     res.json({ message: "Welcome Wayumart Backend" });
+});
+
+// Search endpoint
+app.get('/search', async (req, res) => {
+  try {
+    const query = req.query.query;
+    if (!query) {
+      return res.status(400).json({ message: 'Query parameter is required' });
+    }
+    // console.log(req.body.userId);
+    const products = await Product.find({ product_name: new RegExp(query, 'i') });
+    res.status(200).json(products);
+  } catch (error) {
+    console.error('Error during search:', error);
+    res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
 });
 
 // routes

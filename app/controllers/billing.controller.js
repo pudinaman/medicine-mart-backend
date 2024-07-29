@@ -1,5 +1,6 @@
 const Billing = require('../models/billing.model');
 const User = require('../models/user.model');
+const { slackLogger } = require('../middlewares/webHook');
 
 exports.createBilling = async (req, res) => {
     try {
@@ -26,10 +27,10 @@ exports.createBilling = async (req, res) => {
         res.status(201).json(billing);
     } catch (error) {
         console.error('Error creating billing:', error);
+        slackLogger(error); // Log error to Slack
         res.status(500).json({ error: 'Error creating billing' });
     }
 };
-
 
 exports.getBillingByUserId = async (req, res) => {
     try {
@@ -42,34 +43,34 @@ exports.getBillingByUserId = async (req, res) => {
         res.json(billing.billings);
     } catch (error) {
         console.error('Error retrieving billing:', error);
+        slackLogger(error); // Log error to Slack
         res.status(500).json({ error: 'Error retrieving billing information' });
     }
 };
 
+exports.updateBilling = async (req, res) => {
+    try {
+        const user_id = req.params.user_id;
+        const billingInfo = { ...req.body };
+        delete billingInfo.user_id;
 
-// exports.updateBilling = async (req, res) => {
-//     try {
-//         const user_id = req.params.user_id;
-//         const billingInfo = { ...req.body };
-//         delete billingInfo.user_id;
+        const billing = await Billing.findOneAndUpdate(
+            { user_id },
+            { $set: { billings: [billingInfo] } },
+            { new: true }
+        );
 
-//         const billing = await Billing.findOneAndUpdate(
-//             { user_id },
-//             { $set: { billings: [billingInfo] } },
-//             { new: true }
-//         );
+        if (!billing) {
+            return res.status(404).json({ error: 'Billing information not found' });
+        }
 
-//         if (!billing) {
-//             return res.status(404).json({ error: 'Billing information not found' });
-//         }
-
-//         res.json(billing);
-//     } catch (error) {
-//         console.error('Error updating billing:', error);
-//         res.status(500).json({ error: 'Error updating billing information' });
-//     }
-// };
-
+        res.json(billing);
+    } catch (error) {
+        console.error('Error updating billing:', error);
+        slackLogger(error); // Log error to Slack
+        res.status(500).json({ error: 'Error updating billing information' });
+    }
+};
 
 exports.deleteBilling = async (req, res) => {
     try {
@@ -87,6 +88,7 @@ exports.deleteBilling = async (req, res) => {
         res.json({ message: 'Billing information deleted successfully' });
     } catch (error) {
         console.error('Error deleting billing:', error);
+        slackLogger(error); // Log error to Slack
         res.status(500).json({ error: 'Error deleting billing information' });
     }
 };
@@ -110,6 +112,7 @@ exports.getBillingById = async (req, res) => {
         res.json(billing);
     } catch (error) {
         console.error('Error fetching billing:', error);
+        slackLogger(error); // Log error to Slack
         res.status(500).json({ error: 'Error fetching billing information' });
     }
 };

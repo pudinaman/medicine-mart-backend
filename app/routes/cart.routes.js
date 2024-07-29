@@ -4,7 +4,7 @@ const authJwt = require("../middlewares/authJwt");
 
 module.exports = function (app) {
   app.use(function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", "http://127.0.0.1:5500");
+    res.header("Access-Control-Allow-Origin","http://localhost:3000");
 
     res.header(
       "Access-Control-Allow-Headers",
@@ -23,5 +23,6 @@ app.get('/cart/:userId', authJwt.verifyToken, cartController.getCart);
 app.post('/addCart', authJwt.verifyToken, cartController.addToCart);
 app.delete('/removeFromCart/:userId', authJwt.verifyToken, cartController.removeFromCart);
 app.delete('/cart/:userId', cartController.deleteCart);
+app.delete('/cart/product',authJwt.verifyToken,cartController.deleteProductFromCart)
 
 };

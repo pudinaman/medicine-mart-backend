@@ -1,8 +1,9 @@
 const Product = require('../models/product.model');
 const User = require('../models/user.model');
+const slackLogger = require('../middlewares/webHook');
 
 exports.createProduct = async (req, res) => {
-    const userId = req.body.owner; 
+    const userId = req.body.owner;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -10,7 +11,7 @@ exports.createProduct = async (req, res) => {
     }
     try {
         let productsToCreate = [];
-        
+
         if (Array.isArray(req.body)) {
             productsToCreate = req.body;
         } else {
@@ -25,7 +26,9 @@ exports.createProduct = async (req, res) => {
         }
         res.status(201).send(createdProducts);
     } catch (error) {
-        res.status(400).send(error);
+        console.error('Error creating product:', error);
+        slackLogger('Error creating product', 'Failed to create product', error, req);
+        res.status(400).send({ error: 'Error creating product', details: error.message });
     }
 };
 
@@ -33,14 +36,29 @@ exports.getAllProducts = async (req, res) => {
     try {
         let query = Product.find();
 
-        if (req.query.sort === 'newest') {
+        const searchFields = {};
+
+        if (req.query.search) {
+            const searchRegex = new RegExp(req.query.search, 'i');
+            searchFields.$or = [
+                { product_name: searchRegex },
+                { description: searchRegex },
+                { category: searchRegex },
+                { brand: searchRegex }
+            ];
+            query = query.find(searchFields);
+        }
+
+        if (req.query.sort === 'newest' || !req.query.sort) {
             query = query.sort({ createdAt: -1 });
         }
 
-        const products = await query;
-        res.send(products);
+        const products = await query.exec();
+        res.status(200).send(products);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving products:', error);
+        slackLogger('Error retrieving products', 'Failed to retrieve products', error, req);
+        res.status(500).send({ error: 'Server Error', details: error.message });
     }
 };
 
@@ -49,11 +67,13 @@ exports.getProductById = async (req, res) => {
     try {
         const product = await Product.findById(_id);
         if (!product) {
-            return res.status(404).send();
+            return res.status(404).send({ error: 'Product not found' });
         }
-        res.send(product);
+        res.status(200).send(product);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving product:', error);
+        slackLogger('Error retrieving product', `Failed to retrieve product with ID ${_id}`, error, req);
+        res.status(500).send({ error: 'Error retrieving product', details: error.message });
     }
 };
 
@@ -62,11 +82,13 @@ exports.updateProduct = async (req, res) => {
     try {
         const product = await Product.findByIdAndUpdate(_id, req.body, { new: true });
         if (!product) {
-            return res.status(404).send();
+            return res.status(404).send({ error: 'Product not found' });
         }
-        res.send(product);
+        res.status(200).send(product);
     } catch (error) {
-        res.status(400).send(error);
+        console.error('Error updating product:', error);
+        slackLogger('Error updating product', `Failed to update product with ID ${_id}`, error, req);
+        res.status(400).send({ error: 'Error updating product', details: error.message });
     }
 };
 
@@ -75,26 +97,28 @@ exports.deleteProduct = async (req, res) => {
     try {
         const product = await Product.findByIdAndDelete(_id);
         if (!product) {
-            return res.status(404).send();
+            return res.status(404).send({ error: 'Product not found' });
         }
-        res.send(product);
+        res.status(200).send(product);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error deleting product:', error);
+        slackLogger('Error deleting product', `Failed to delete product with ID ${_id}`, error, req);
+        res.status(500).send({ error: 'Error deleting product', details: error.message });
     }
 };
-
-
 
 exports.getSimilarProducts = async (req, res) => {
     const category = req.params.category;
     try {
-        const products = await Product.find({ category: category }).limit(2);
+        const products = await Product.find({ category }).limit(2);
         if (products.length === 0) {
-            return res.status(404).send();
+            return res.status(404).send({ error: 'No similar products found' });
         }
-        res.send(products);
+        res.status(200).send(products);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving similar products:', error);
+        slackLogger('Error retrieving similar products', `Failed to retrieve similar products for category ${category}`, error, req);
+        res.status(500).send({ error: 'Error retrieving similar products', details: error.message });
     }
 };
 
@@ -104,9 +128,11 @@ exports.getProductsByMaxTotalOrders = async (req, res) => {
         if (!products || products.length === 0) {
             return res.status(404).send({ error: 'No products found' });
         }
-        res.send(products);
+        res.status(200).send(products);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving products by max total orders:', error);
+        slackLogger('Error retrieving products by max total orders', 'Failed to retrieve products by max total orders', error, req);
+        res.status(500).send({ error: 'Error retrieving products by max total orders', details: error.message });
     }
 };
 
@@ -126,6 +152,11 @@ exports.postReview = async (req, res) => {
             return res.status(404).send({ error: 'User not found' });
         }
 
+        const existingReview = product.reviews.find(review => review.user.toString() === userId);
+        if (existingReview) {
+            return res.status(400).send({ error: 'User has already reviewed this product' });
+        }
+
         const newReview = {
             user: userId,
             review_text,
@@ -140,7 +171,9 @@ exports.postReview = async (req, res) => {
 
         res.status(201).send(product);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error posting review:', error);
+        slackLogger('Error posting review', `Failed to post review for product with ID ${productId}`, error, req);
+        res.status(500).send({ error: 'Error posting review', details: error.message });
     }
 };
 
@@ -156,6 +189,8 @@ exports.getReviews = async (req, res) => {
         const reviews = product.reviews;
         res.status(200).send(reviews);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving reviews:', error);
+        slackLogger('Error retrieving reviews', `Failed to retrieve reviews for product with ID ${productId}`, error, req);
+        res.status(500).send({ error: 'Error retrieving reviews', details: error.message });
     }
 };

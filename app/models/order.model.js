@@ -102,6 +102,11 @@ const orderSchema = new mongoose.Schema({
         orderNotes: String,
         _id: false 
     },
+    status:{
+        type: String,
+        default:"Packed"
+    },
+    
 }, {
     timestamps: true
 });

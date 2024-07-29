@@ -106,6 +106,10 @@ const productSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    old_price:{
+        type:Number,
+        required:false
+    },
     ratings: {
         type: Number,
         required: false
@@ -185,6 +189,7 @@ const productSchema = new mongoose.Schema({
         required: false,
         default: 0
     },
+   
 }, {
     timestamps: true
 })

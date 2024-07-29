@@ -8,7 +8,7 @@ const upload = multer({ storage: storage });
 
 module.exports = function (app) {
   app.use(function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", "http://127.0.0.1:5500");
+    res.header("Access-Control-Allow-Origin", "http://localhost:3000");
 
     res.header(
       "Access-Control-Allow-Headers",
@@ -113,6 +113,6 @@ module.exports = function (app) {
   app.post("/resendMobileOTP", authJwt.verifyToken, controller.resendMobileOTP);
   app.post("/setPassword", authJwt.verifyToken, controller.setPassword);
   app.post("/forgot-password", controller.forgotPassword);
-
+  app.post("/api/contact/sendmail",controller.sendMailFrontend);
   app.post("/addReview", controller.addReview);
 };

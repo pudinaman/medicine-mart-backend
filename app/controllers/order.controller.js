@@ -4,6 +4,9 @@ const Cart = require('../models/cart.model');
 const Coupon = require('../models/coupon.model');
 const Product = require('../models/product.model')
 const Billing = require('../models/billing.model');
+const Razorpay=require("razorpay");
+const mongoose=require('mongoose');
+const { slackLogger } = require('../middlewares/webHook');
 
 const generateRandomOrderId = () => {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -185,33 +188,50 @@ const generateRandomOrderId = () => {
 //////////////////////////////////////////////////////////////////////////////
 
 
+// Initialize Razorpay instance with your API key and secret
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_API_KEY,
+    key_secret: process.env.RAZORPAY_API_SECRET,
+});
+
 exports.createOrder = async (req, res) => {
-    const { product_id: productId, cart_id: cartId, user_id: userId, orderTotal, selectedBillingId, couponUsed, couponDiscount, razorpayPaymentId, quantity, selected_size: selectedSize } = req.body;
+    const {
+        product_id: productId,
+        cart_id: cartId,
+        user_id: userId,
+        orderTotal,
+        selectedBillingId,
+        couponUsed,
+        couponDiscount,
+        quantity,
+        selected_size: selectedSize,
+        shipment_track_activities
+    } = req.body;
 
     try {
-      if (!productId && !cartId) {
+        if (!productId && !cartId) {
             return res.status(400).send({ error: 'Either product ID or cart ID must be provided' });
         }
 
-       let products = [];
+        let products = [];
         if (productId) {
             const product = await Product.findById(productId);
             if (!product) {
                 return res.status(404).send({ error: 'Product not found' });
             }
-           const selectedProductSize = product.size.find(size => size.size === selectedSize);
+            const selectedProductSize = product.size.find(size => size.size === selectedSize);
             if (!selectedProductSize) {
                 return res.status(404).send({ error: 'Selected size not found for this product' });
             }
             products.push({
                 productId: product._id,
                 name: product.product_name,
-                quantity: quantity || 1, 
+                quantity: quantity || 1,
                 price: selectedProductSize.price,
                 selected_size: selectedSize,
-                product_image: product.product_image[0], 
+                product_image: product.product_image[0],
                 actual_price: product.actual_price,
-                sale_price: product.sale_price
+                sale_price: product.sale_price,
             });
             await Product.findByIdAndUpdate(productId, { $inc: { total_orders_of_product: 1 } });
         } else {
@@ -227,12 +247,11 @@ exports.createOrder = async (req, res) => {
                 selected_size: product.selected_size,
                 product_image: product.product_image,
                 actual_price: product.actual_price,
-                sale_price: product.sale_price
+                sale_price: product.sale_price,
             }));
             for (const product of cart.products) {
                 await Product.findByIdAndUpdate(product.productId, { $inc: { total_orders_of_product: 1 } });
             }
-        
         }
 
         let billingAddress = null;
@@ -247,42 +266,55 @@ exports.createOrder = async (req, res) => {
             }
         }
 
-       const order = new Order({
+        // Create Razorpay order
+        const razorpayOrder = await razorpay.orders.create({
+            amount: orderTotal * 100, // Amount in paise
+            currency: 'INR',
+            receipt: 'receipt_order_' + new Date().getTime(),
+            payment_capture: 1, // Auto capture
+        });
+
+        // Save order with initial status 'pending'
+        const order = new Order({
             owner: userId,
             products,
             bill: orderTotal,
             billing_address: billingAddress,
             couponUsed: couponUsed,
             actual_bill: Number(orderTotal) + Number(couponDiscount),
-            payment_id: razorpayPaymentId,
+            payment_id: razorpayOrder.id,
             couponDiscount,
+            shipment_track_activities,
+            order_id: generateRandomOrderId(),
+            status: 'pending', // Initial status
         });
-
-        order.order_id = generateRandomOrderId();
 
         const savedOrder = await order.save();
 
-       const update = {
+        // Update user with new order ID
+        const update = {
             $push: {
                 order_ids: {
                     _id: savedOrder._id,
                     productIds: products.map(product => product.productId),
-                    orderId: savedOrder.order_id
-                }
-            }
+                    orderId: savedOrder.order_id,
+                },
+            },
         };
         await User.findByIdAndUpdate(userId, update);
 
+        // If using cart, delete it after successful order creation
         if (cartId) {
             await Cart.deleteOne({ _id: cartId });
         }
 
-        res.status(201).send(savedOrder);
+        res.status(201).send({ order: savedOrder, razorpayOrder });
     } catch (error) {
+        console.error('Error creating order:', error);
+        slackLogger('Error creating order', `Failed to create order for user ${req.body.user_id}`, error, req); // Log error to Slack with context
         res.status(400).send({ error: 'Error creating order', details: error.message });
     }
 };
-
 
 // exports.createOrder = async (req, res) => {
 //     const { cart_id: cartId, user_id: userId, coupon_code } = req.body;
@@ -368,27 +400,38 @@ exports.createOrder = async (req, res) => {
 exports.getAllOrders = async (req, res) => {
     try {
         const orders = await Order.find({});
-        res.send(orders);
+        res.status(200).send(orders);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving orders:', error);
+        slackLogger('Error retrieving orders', 'Failed to retrieve all orders', error, req); // Log error to Slack with context
+        res.status(500).send({ error: 'Error retrieving orders', details: error.message });
     }
 };
 
 exports.getOrder = async (req, res) => {
-
     try {
-        const order = await Order.findById(req.params.order_id);
-        const user = await User.findById(req.params.user_id);
-        if (!order) {
-            return res.status(404).send();
+        const orderId = req.params.order_id;
+        const userId = req.params.user_id;
+
+        if (!mongoose.Types.ObjectId.isValid(orderId) || !mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).send({ error: 'Invalid order ID or user ID' });
         }
 
-        if (!user) {
-            return res.status(404).send();
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return res.status(404).send({ error: 'Order not found' });
         }
-        res.send(order);
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).send({ error: 'User not found' });
+        }
+
+        res.status(200).send(order);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving order:', error);
+        slackLogger('Error retrieving order', `Failed to retrieve order with ID ${req.params.order_id} for user ${req.params.user_id}`, error, req); // Log error to Slack with context
+        res.status(500).send({ error: 'Error retrieving order', details: error.message });
     }
 };
 
@@ -427,12 +470,21 @@ exports.getOrder = async (req, res) => {
 
 exports.getAllOrdersByUser = async (req, res) => {
     try {
-        const orders = await Order.find({ owner: req.params.user_id });
-        res.send(orders);
+        const userId = req.params.user_id;
+
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).send({ error: 'Invalid user ID' });
+        }
+
+        const orders = await Order.find({ owner: userId });
+        res.status(200).send(orders);
     } catch (error) {
-        res.status(500).send(error);
+        console.error('Error retrieving orders for user:', error);
+        slackLogger('Error retrieving orders for user', `Failed to retrieve orders for user ID ${req.params.user_id}`, error, req); // Log error to Slack with context
+        res.status(500).send({ error: 'Error retrieving orders', details: error.message });
     }
 };
+
 
 // exports.postOrderNew = async (req, res) => {
 //     try {

@@ -46,16 +46,15 @@ let mailTransport;
 exports.mailTransport = mailTransport;
 
 exports.sendMailFrontend = async (req, res) => {
-  const { name, email, phone, message } = req.body;
+  const { name, email, message } = req.body;
 
   const mailOptions = {
     from: "bhaidekh34@gmail.com",
-    to: "bhaidekh34@gmail.com",
+    to: email,
     subject: "New contact form submission from Khud11.com",
     text: `
       Name: ${name}\n
       Email: ${email}\n
-      Phone: ${phone}\n
       Message: ${message}\n
     `,
   };
@@ -98,11 +97,11 @@ exports.generateUsername = async () => {
  * @returns err Cast to string failed for value "Promise {248434}" (type promise) at path "otp"
  */
 // generate otp function
-exports.generateOTP = () => {
+//exports.generateOTP = () => {
   // Generate a random 6-digit number
-  const otp = Math.floor(100000 + Math.random() * 900000);
-  return otp.toString(); //converted to string to check if error resolves.
-};
+//  const otp = Math.floor(100000 + Math.random() * 900000);
+//  return otp.toString(); //converted to string to check if error resolves.
+//};
 
 exports.verifyMobile = async (req, res) => {
   try {
@@ -1270,3 +1269,33 @@ exports.addReview = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 }
+
+
+exports.sendEmail = (req, res) => {
+    const { name, email, message } = req.body;
+
+    // Create a transporter object using SMTP transport
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: 'ayush2003hero@gmail.com', // Replace with your email
+            pass: 'Ayush@2003'   // Replace with your email password or app-specific password
+        }
+    });
+
+    // Email options
+    const mailOptions = {
+        from: email,
+        to: 'ayush2003hero@gmail.com',
+        subject: `Message from ${name}`,
+        text: message
+    };
+
+    // Send email
+    transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+            return res.status(500).send('Error occurred: ' + error.message);
+        }
+        res.send('Email sent: ' + info.response);
+    });
+};

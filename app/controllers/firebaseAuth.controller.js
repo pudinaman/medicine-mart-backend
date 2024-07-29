@@ -4,7 +4,7 @@ var jwt = require("jsonwebtoken");
 const config = require("../config/auth.config");
 const multiavatar = require('@multiavatar/multiavatar');
 const authController = require('./auth.controller');
-// const { slackLogger, webHookURL } = require('../middlewares/webHook')
+ const { slackLogger, webHookURL } = require('../middlewares/webHook')
 
 
 exports.authController = async (req, res) => {
@@ -113,24 +113,24 @@ exports.authController = async (req, res) => {
     
     res.status(200).json({ message: 'User created and signed in successfully', accessToken: token, user_id: newUser.id, username: newUser.username, email: newUser.email });
   } catch (error) {
-    // await slackLogger('Error verifying mobile number', error.message, error, null, webHookURL);
+     await slackLogger('Error verifying mobile number', error.message, error, null, webHookURL);
     console.error('Error signing up:', error);
     res.status(500).json({ error: 'Failed to sign up' });
   }
 };
 
-// const generateUsername = async (email) => {
-//   // Extract the first 4 characters from the email
-//   const username = email.substring(0, 4).toLowerCase();
+ const generateUsername = async (email) => {
+   // Extract the first 4 characters from the email
+      const username = email.substring(0, 4).toLowerCase();
 //   // Check if the username is already taken
-//   const existingUser = await User.findOne({ username });
-//   if (!existingUser) {
-//     return username;
-//   }
+   const existingUser = await User.findOne({ username });
+   if (!existingUser) {
+     return username;
+  }
 //   // If the username is taken, add a random number to make it unique
-//   const randomNumber = Math.floor(1000 + Math.random() * 9000);
-//   return `${username}${randomNumber}`;
-// };
+   const randomNumber = Math.floor(1000 + Math.random() * 9000);
+   return `${username}${randomNumber}`;
+ };
 // generate otp function
 // function generateOTP() {
 //   // Generate a random 6-digit number

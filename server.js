@@ -1,72 +1,70 @@
 const express = require('express');
-const cors = require("cors");
+const cors = require('cors');
 const bodyParser = require('body-parser');
-const app = express();
+const dotenv = require('dotenv');
+const mongoose = require('mongoose');
+const admin = require('firebase-admin');
+const Razorpay = require('razorpay');
 const dbConfig = require('./app/config/db.config');
+const serviceAccount = require('./wayu-mart-firebase-adminsdk-sc1tt-28a36f3a7a.json');
 const db = require('./app/models');
 const User = require('./app/models/user.model');
-const admin = require('firebase-admin');
 const Role = db.role;
 const Product = db.product;
-const serviceAccount = require('./wayumart-9e794-firebase-adminsdk-gx86d-425bd46890.json');
-require('dotenv').config();
-// db.mongoose.connect(`mongodb://${dbConfig.HOST}:${dbConfig.PORT}/${dbConfig.DB}`)
-  db.mongoose.connect(process.env.MONGODB_URI)
-    .then(console.log('Connected to MongoDB'))
-    .catch(async (err) => {
-        console.log('Error connecting to MongoDB', err);
-    });
-process.on('uncaughtException', async (err, data) => {
-    try {
-        console.log('Caught uncaught exception: ', err, data);
-    } finally {
-        process.exit(1);
-    }
+const { slackLogger } = require('./app/middlewares/webHook');
+
+dotenv.config();
+
+// Initialize Razorpay
+const instance = new Razorpay({
+  key_id: process.env.RAZORPAY_API_KEY,
+  key_secret: process.env.RAZORPAY_API_SECRET
 });
 
+// Initialize Firebase admin
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+  credential: admin.credential.cert(serviceAccount),
+});
 
-app.use(cors())
-const allowedOrigins = ['http://127.0.0.1:5500', 'https://wayumart-9e794.web.app'];
+// Initialize Express app
+const app = express();
 
-app.use(cors({
-  origin: function(origin, callback){
-    // allow requests with no origin (like mobile apps or curl requests)
-    if(!origin) return callback(null, true);
-    if(allowedOrigins.indexOf(origin) === -1){
-      const msg = 'The CORS policy for this site does not ' +
-                'allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  }
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.log('Error connecting to MongoDB', err));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err, data) => {
+  console.error('Caught uncaught exception: ', err, data);
+  process.exit(1);
+});
+
+// Root endpoint
 app.get('/', (req, res) => {
-    res.json({ message: "Welcome Wayumart Backend" });
+  res.json({ message: "Welcome to Wayumart Backend" });
 });
 
 // Search endpoint
-app.get('/search', async (req, res) => {
+app.get('/search', async (req, res, next) => {
   try {
     const query = req.query.query;
     if (!query) {
       return res.status(400).json({ message: 'Query parameter is required' });
     }
-    // console.log(req.body.userId);
     const products = await Product.find({ product_name: new RegExp(query, 'i') });
     res.status(200).json(products);
   } catch (error) {
-    console.error('Error during search:', error);
-    res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    next(error); // Pass the error to the next middleware
   }
 });
 
-// routes
+// Routes
 require('./app/routes/auth.routes')(app);
 require('./app/routes/order.routes')(app);
 require('./app/routes/product.routes')(app);
@@ -76,71 +74,38 @@ require('./app/routes/firebaseAuth.routes')(app);
 require('./app/routes/coupon.routes')(app);
 require('./app/routes/checkout.routes')(app);
 require('./app/routes/appointment.routes')(app);
+const about = require("./app/routes/about.routes");
+app.use('/api', about);
 
-
-exports.sendOTPMobile = async (mobileNumber, user_id) => {
-    if (!user_id) {
-      throw new Error('User ID is required');
+// Initialize roles if none exist
+Role.countDocuments()
+  .then((count) => {
+    if (count === 0) {
+      Promise.all([
+        new Role({ name: "user" }).save(),
+        new Role({ name: "moderator" }).save(),
+        new Role({ name: "admin" }).save()
+      ]).then(() => {
+        console.log("Roles initialized");
+      }).catch((err) => {
+        console.error("Error initializing roles:", err);
+      });
     }
-    const user = await User.findById(user_id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    if (!mobileNumber) {
-      throw new Error('Mobile number is required');
-    }
-  
-    const otp = Math.floor(100000 + Math.random() * 900000);
-  
-    // Construct the request to Fast2SMS API
-    const response = await axios.get('https://www.fast2sms.com/dev/bulkV2', {
-      params: {
-        authorization: '',
-        variables_values: otp.toString(),
-        route: 'otp',
-        numbers: mobileNumber // Use the provided mobile number
-      },
-      headers: {
-        'cache-control': 'no-cache'
-      }
-    });
-  
-    // Save the OTP to the user
-    user.phoneNumber = mobileNumber;
-    user.otp = otp;
-    await user.save();
-    console.log('OTP sent successfully:', response.data);
-    return response;
-  }
+  })
+  .catch((err) => {
+    console.error("Error during countDocuments:", err);
+  });
 
-  Role.countDocuments()
-    .then((count) => {
-      if (count === 0) {
-        new Role({
-          name: "user"
-        }).save()
-          .then(() => console.log("added 'user' to roles collection"))
-          .catch((err) => console.log("error", err));
+// Error handling middleware
+app.use(slackLogger);
 
-        new Role({
-          name: "moderator"
-        }).save()
-          .then(() => console.log("added 'moderator' to roles collection"))
-          .catch((err) => console.log("error", err));
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send({ message: 'Internal Server Error', error: err.message });
+});
 
-        new Role({
-          name: "admin"
-        }).save()
-          .then(() => console.log("added 'admin' to roles collection"))
-          .catch((err) => console.log("error", err));
-      }
-    })
-    .catch((err) => {
-      console.error("Error during countDocuments:", err);
-    });
-
-
-const PORT = 4000;
-app.listen(PORT, async () => {
-    console.log(`Server is running on port ${PORT}.`);
+// Start server
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}.`);
 });

@@ -4,12 +4,4 @@ khurd-54065-firebase-adminsdk-gu85g-48fa269ebe.json
 /node_modules
 
 
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
 
-Dockerfile
-entrypoint.sh
-wayumart-9e794-firebase-adminsdk-gx86d-425bd46890.json

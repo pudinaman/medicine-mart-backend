@@ -11,7 +11,7 @@ const db = require('./app/models');
 const User = require('./app/models/user.model');
 const Role = db.role;
 const Product = db.product;
-const { slackLogger } = require('./app/middlewares/webHook');
+const {slackLogger, webHookURL} = require('./app/middlewares/webHook');
 
 dotenv.config();
 
@@ -34,14 +34,19 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+
+  
+   db.mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.log('Error connecting to MongoDB', err));
+  .catch(async (err) => {
+    console.log('Error connecting to MongoDB', err)
+    await slackLogger("Error connecting to MongoDB", err.message, err, null, webHookURL);
+  });
 
 // Handle uncaught exceptions
-process.on('uncaughtException', (err, data) => {
-  console.error('Caught uncaught exception: ', err, data);
+process.on('uncaughtException', async err => {
+  console.log('Caught uncaught exception: ', err);
+  await slackLogger("Uncaught Exception", err.message, err, null, webHookURL);
   process.exit(1);
 });
 
@@ -89,11 +94,15 @@ Role.countDocuments()
         console.log("Roles initialized");
       }).catch((err) => {
         console.error("Error initializing roles:", err);
+        // Send error initializing roles to Slack
+        slackLogger(err, null, null, () => {});
       });
     }
   })
   .catch((err) => {
     console.error("Error during countDocuments:", err);
+    // Send error during countDocuments to Slack
+    slackLogger(err, null, null, () => {});
   });
 
 // Error handling middleware

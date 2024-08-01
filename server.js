@@ -35,9 +35,26 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 
-  
+//db.mongoose.connect(`mongodb://${dbConfig.HOST}:${dbConfig.PORT}/${dbConfig.DB}`)
    db.mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
+  .then(() => console.log('Connected to MongoDB'),
+// Initialize roles if none exist
+   Role.countDocuments()
+  .then((count) => {
+    if (count === 0) {
+      Promise.all([
+        new Role({ name: "user" }).save(),
+        new Role({ name: "moderator" }).save(),
+        new Role({ name: "admin" }).save()
+      ]).then(() => {
+        console.log("Roles initialized");
+      }).catch((err) => {
+        console.error("Error initializing roles:", err);
+        // Send error initializing roles to Slack
+        slackLogger(err);
+      });
+    }
+  }))
   .catch(async (err) => {
     console.log('Error connecting to MongoDB', err)
     await slackLogger("Error connecting to MongoDB", err.message, err, null, webHookURL);
@@ -82,28 +99,8 @@ require('./app/routes/appointment.routes')(app);
 const about = require("./app/routes/about.routes");
 app.use('/api', about);
 
-// Initialize roles if none exist
-Role.countDocuments()
-  .then((count) => {
-    if (count === 0) {
-      Promise.all([
-        new Role({ name: "user" }).save(),
-        new Role({ name: "moderator" }).save(),
-        new Role({ name: "admin" }).save()
-      ]).then(() => {
-        console.log("Roles initialized");
-      }).catch((err) => {
-        console.error("Error initializing roles:", err);
-        // Send error initializing roles to Slack
-        slackLogger(err, null, null, () => {});
-      });
-    }
-  })
-  .catch((err) => {
-    console.error("Error during countDocuments:", err);
-    // Send error during countDocuments to Slack
-    slackLogger(err, null, null, () => {});
-  });
+
+  
 
 // Error handling middleware
 app.use(slackLogger);

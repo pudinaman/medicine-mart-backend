@@ -2,9 +2,8 @@ name: Docker Build and Push
 
 on:
   push:
-    branches: [master]  # Make sure this matches your branch name
-  pull_request:
-    branches: [master]  # Make sure this matches your branch name
+    branches:
+      - master # Change this to your default branch name if it's different
 
 jobs:
   build-and-push:
@@ -27,7 +26,5 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: ${{ github.event_name != 'pull_request' }} # Only push for non-PR events
+        push: true
         tags: ${{ secrets.DOCKER_USERNAME }}/wayumart:latest
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/wayumart:cache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/wayumart:cache,mode=max

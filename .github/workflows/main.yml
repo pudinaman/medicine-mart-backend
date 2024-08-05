@@ -22,6 +22,6 @@ jobs:
       with:
         context: .
         push: ${{ github.event_name != 'pull_request' }} # Only push for non-PR events
-        tags: ${{ secrets.DOCKER_USERNAME }}/wayumart:latest
+        tags: ${{ secrets.DOCKER_USERNAME }}/wayumart:latest #tesst
         cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/wayumart:cache
         cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/wayumart:cache,mode=max

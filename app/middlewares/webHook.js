@@ -1,7 +1,5 @@
-require('dotenv').config();
 const axios = require('axios');
-const webhookURL = process.env.WEBHOOK_URL;
-// const fetch = require('node-fetch'); // Import fetch library
+const {remoteConfig,getWebhookUrl} = require('../../firebase'); // Import the Remote Config instance
 
 // Function definition for replaceUrlsInText
 function replaceUrlsInText(text) {
@@ -13,7 +11,8 @@ function getIpFromRequest(req) {
     return req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 }
 
-exports.slackLogger = async (title, descriptionParam, error, req, hook = webhookURL) => {
+exports.slackLogger = async (title, descriptionParam, error, req) => {
+    const webhookURL = await getWebhookUrl(); // Fetch webhook URL from Remote Config
     const blocks = [];
     blocks.push({
         block_id: 'title',
@@ -112,27 +111,9 @@ exports.slackLogger = async (title, descriptionParam, error, req, hook = webhook
         text: replaceUrlsInText(`${title}\r\n${error && error.message}`).substring(0, 100),
     };
     try {
-        await axios.post(hook, slackBody);
+        await axios.post(webhookURL, slackBody);
         console.log('error sent successfully');
     } catch (error) {
         console.error('Failed to send error to Slack:', error);
     }    
-    // try {
-    //     // Use fetch to make HTTP POST request
-    //     const response = await fetch(hook, {
-    //         method: 'POST',
-    //         headers: { 'Content-Type': 'application/json' },
-    //         body: JSON.stringify(slackBody),
-    //     });
-    //     if (!response.ok) {
-    //         throw new Error(`Failed to send error to Slack. Status: ${response.status}`);
-    //     }
-    //     console.log('Error sent successfully');
-    // } catch (error) {
-    //     console.error('Failed to send error to Slack:', error);
-    // }
-//} catch (error) {
-//console.error(`Error verifying mobile number: ${error}`);
-//await slackLogger('Error verifying mobile number', error.message, error, null, webHookURL);
-//res.status(500).send({ message: "Internal Server Error", error: error.message });}
 }

@@ -44,7 +44,7 @@ exports.getAllProducts = async (req, res) => {
                 { product_name: searchRegex },
                 { description: searchRegex },
                 { category: searchRegex },
-                { brand: searchRegex }
+                { brand: searchRegex },
             ];
             query = query.find(searchFields);
         }

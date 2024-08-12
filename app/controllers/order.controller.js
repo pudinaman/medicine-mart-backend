@@ -6,6 +6,7 @@ const Product = require('../models/product.model')
 const Billing = require('../models/billing.model');
 const Razorpay=require("razorpay");
 const mongoose=require('mongoose');
+const { remoteConfig } = require('../../firebase'); // Import remoteConfig
 const { slackLogger } = require('../middlewares/webHook');
 
 const generateRandomOrderId = () => {
@@ -188,133 +189,153 @@ const generateRandomOrderId = () => {
 //////////////////////////////////////////////////////////////////////////////
 
 
-// Initialize Razorpay instance with your API key and secret
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_API_KEY,
-    key_secret: process.env.RAZORPAY_API_SECRET,
-});
+
+
+
+const getRazorpayCredentials = async () => {
+  try {
+    const template = await remoteConfig.getTemplate();
+    const razorpayKeyId = template.parameters.RAZORPAY_API_KEY ? template.parameters.RAZORPAY_API_KEY.defaultValue.value : '';
+    const razorpayKeySecret = template.parameters.RAZORPAY_API_SECRET ? template.parameters.RAZORPAY_API_SECRET.defaultValue.value : '';
+    if (!razorpayKeyId || !razorpayKeySecret) {
+      throw new Error('Razorpay API keys are missing from Remote Config');
+    }
+    return { key_id: razorpayKeyId, key_secret: razorpayKeySecret };
+  } catch (error) {
+    console.error('Error fetching Razorpay credentials:', error);
+    throw new Error('Unable to fetch Razorpay credentials');
+  }
+};
 
 exports.createOrder = async (req, res) => {
-    const {
-        product_id: productId,
-        cart_id: cartId,
-        user_id: userId,
-        orderTotal,
-        selectedBillingId,
-        couponUsed,
-        couponDiscount,
-        quantity,
-        selected_size: selectedSize,
-        shipment_track_activities
-    } = req.body;
+  const {
+    product_id: productId,
+    cart_id: cartId,
+    user_id: userId,
+    orderTotal,
+    selectedBillingId,
+    couponUsed,
+    couponDiscount,
+    quantity,
+    selected_size: selectedSize,
+    shipment_track_activities
+  } = req.body;
 
-    try {
-        if (!productId && !cartId) {
-            return res.status(400).send({ error: 'Either product ID or cart ID must be provided' });
-        }
-
-        let products = [];
-        if (productId) {
-            const product = await Product.findById(productId);
-            if (!product) {
-                return res.status(404).send({ error: 'Product not found' });
-            }
-            const selectedProductSize = product.size.find(size => size.size === selectedSize);
-            if (!selectedProductSize) {
-                return res.status(404).send({ error: 'Selected size not found for this product' });
-            }
-            products.push({
-                productId: product._id,
-                name: product.product_name,
-                quantity: quantity || 1,
-                price: selectedProductSize.price,
-                selected_size: selectedSize,
-                product_image: product.product_image[0],
-                actual_price: product.actual_price,
-                sale_price: product.sale_price,
-            });
-            await Product.findByIdAndUpdate(productId, { $inc: { total_orders_of_product: 1 } });
-        } else {
-            const cart = await Cart.findById(cartId);
-            if (!cart || cart.userId.toString() !== userId) {
-                return res.status(404).send({ error: 'Cart is not associated with this user' });
-            }
-            products = cart.products.map(product => ({
-                productId: product.productId,
-                name: product.name,
-                quantity: product.quantity,
-                price: product.price,
-                selected_size: product.selected_size,
-                product_image: product.product_image,
-                actual_price: product.actual_price,
-                sale_price: product.sale_price,
-            }));
-            for (const product of cart.products) {
-                await Product.findByIdAndUpdate(product.productId, { $inc: { total_orders_of_product: 1 } });
-            }
-        }
-
-        let billingAddress = null;
-        if (selectedBillingId) {
-            const billingInfo = await Billing.findOne({ user_id: userId });
-            if (!billingInfo) {
-                return res.status(404).send({ error: 'Billing information not found for this user' });
-            }
-            billingAddress = billingInfo.billings.id(selectedBillingId);
-            if (!billingAddress) {
-                return res.status(404).send({ error: 'Selected billing address not found' });
-            }
-        }
-
-        // Create Razorpay order
-        const razorpayOrder = await razorpay.orders.create({
-            amount: orderTotal * 100, // Amount in paise
-            currency: 'INR',
-            receipt: 'receipt_order_' + new Date().getTime(),
-            payment_capture: 1, // Auto capture
-        });
-
-        // Save order with initial status 'pending'
-        const order = new Order({
-            owner: userId,
-            products,
-            bill: orderTotal,
-            billing_address: billingAddress,
-            couponUsed: couponUsed,
-            actual_bill: Number(orderTotal) + Number(couponDiscount),
-            payment_id: razorpayOrder.id,
-            couponDiscount,
-            shipment_track_activities,
-            order_id: generateRandomOrderId(),
-            status: 'pending', // Initial status
-        });
-
-        const savedOrder = await order.save();
-
-        // Update user with new order ID
-        const update = {
-            $push: {
-                order_ids: {
-                    _id: savedOrder._id,
-                    productIds: products.map(product => product.productId),
-                    orderId: savedOrder.order_id,
-                },
-            },
-        };
-        await User.findByIdAndUpdate(userId, update);
-
-        // If using cart, delete it after successful order creation
-        if (cartId) {
-            await Cart.deleteOne({ _id: cartId });
-        }
-
-        res.status(201).send({ order: savedOrder, razorpayOrder });
-    } catch (error) {
-        console.error('Error creating order:', error);
-        slackLogger('Error creating order', `Failed to create order for user ${req.body.user_id}`, error, req); // Log error to Slack with context
-        res.status(400).send({ error: 'Error creating order', details: error.message });
+  try {
+    if (!productId && !cartId) {
+      return res.status(400).send({ error: 'Either product ID or cart ID must be provided' });
     }
+
+    let products = [];
+    if (productId) {
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).send({ error: 'Product not found' });
+      }
+      const selectedProductSize = product.size.find(size => size.size === selectedSize);
+      if (!selectedProductSize) {
+        return res.status(404).send({ error: 'Selected size not found for this product' });
+      }
+      products.push({
+        productId: product._id,
+        name: product.product_name,
+        quantity: quantity || 1,
+        price: selectedProductSize.price,
+        selected_size: selectedSize,
+        product_image: product.product_image[0],
+        actual_price: product.actual_price,
+        sale_price: product.sale_price,
+      });
+      await Product.findByIdAndUpdate(productId, { $inc: { total_orders_of_product: 1 } });
+    } else {
+      const cart = await Cart.findById(cartId);
+      if (!cart || cart.userId.toString() !== userId) {
+        return res.status(404).send({ error: 'Cart is not associated with this user' });
+      }
+      products = cart.products.map(product => ({
+        productId: product.productId,
+        name: product.name,
+        quantity: product.quantity,
+        price: product.price,
+        selected_size: product.selected_size,
+        product_image: product.product_image,
+        actual_price: product.actual_price,
+        sale_price: product.sale_price,
+      }));
+      for (const product of cart.products) {
+        await Product.findByIdAndUpdate(product.productId, { $inc: { total_orders_of_product: 1 } });
+      }
+    }
+
+    let billingAddress = null;
+    if (selectedBillingId) {
+      const billingInfo = await Billing.findOne({ user_id: userId });
+      if (!billingInfo) {
+        return res.status(404).send({ error: 'Billing information not found for this user' });
+      }
+      billingAddress = billingInfo.billings.id(selectedBillingId);
+      if (!billingAddress) {
+        return res.status(404).send({ error: 'Selected billing address not found' });
+      }
+    }
+
+    // Fetch Razorpay credentials from Firebase Remote Config
+    const { key_id, key_secret } = await getRazorpayCredentials();
+    const razorpay = new Razorpay({
+      key_id,
+      key_secret,
+    });
+
+    // Create Razorpay order
+    const razorpayOrder = await razorpay.orders.create({
+      amount: orderTotal * 100, // Amount in paise
+      currency: 'INR',
+      receipt: 'receipt_order_' + new Date().getTime(),
+      payment_capture: 1, // Auto capture
+    });
+
+    // Save order with initial status 'pending'
+    const order = new Order({
+      owner: userId,
+      products,
+      bill: orderTotal,
+      billing_address: billingAddress,
+      couponUsed: couponUsed,
+      actual_bill: Number(orderTotal) + Number(couponDiscount),
+      payment_id: razorpayOrder.id,
+      couponDiscount,
+      shipment_track_activities,
+      order_id: generateRandomOrderId(),
+      status: 'pending', // Initial status
+    });
+
+    const savedOrder = await order.save();
+
+    // Update user with new order ID
+    const update = {
+      $push: {
+        order_ids: {
+          _id: savedOrder._id,
+          productIds: products.map(product => product.productId),
+          orderId: savedOrder.order_id,
+        },
+      },
+    };
+    await User.findByIdAndUpdate(userId, update);
+
+    // If using cart, delete it after successful order creation
+    if (cartId) {
+      await Cart.deleteOne({ _id: cartId });
+    }
+
+    res.status(201).send({ order: savedOrder, razorpayOrder });
+  } catch (error) {
+    console.error('Error creating order:', error);
+    slackLogger('Error creating order', `Failed to create order for user ${req.body.user_id}`, error, req); // Log error to Slack with context
+    res.status(400).send({ error: 'Error creating order', details: error.message });
+  }
 };
+
 
 // exports.createOrder = async (req, res) => {
 //     const { cart_id: cartId, user_id: userId, coupon_code } = req.body;

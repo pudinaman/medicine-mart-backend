@@ -11,20 +11,35 @@ const db = require('./app/models');
 const User = require('./app/models/user.model');
 const Role = db.role;
 const Product = db.product;
-const {slackLogger, webHookURL} = require('./app/middlewares/webHook');
+const { remoteConfig } = require('./firebase'); // Import remoteConfig
+const { slackLogger, webHookURL } = require('./app/middlewares/webHook');
 
 dotenv.config();
 
-// Initialize Razorpay
-const instance = new Razorpay({
-  key_id: process.env.RAZORPAY_API_KEY,
-  key_secret: process.env.RAZORPAY_API_SECRET
-});
 
-// Initialize Firebase admin
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+const fetchRemoteConfig = async () => {
+  try {
+    const template = await remoteConfig.getTemplate();
+    const portValue = template.parameters.PORT ? template.parameters.PORT.defaultValue.value : '4000';
+    const portNumber = parseInt(portValue, 10); // Convert to number
+    if (isNaN(portNumber)) {
+      throw new Error('Invalid PORT value');
+    }
+
+    const mongodbUri = template.parameters.MONGODB_URI ? template.parameters.MONGODB_URI.defaultValue.value : '';
+    if (!mongodbUri) {
+      throw new Error('MongoDB URI is missing from Remote Config');
+    }
+
+    return { portNumber, mongodbUri };
+  } catch (error) {
+    console.error('Error fetching remote config:', error);
+    await slackLogger("Error starting server", error.message, error, null, webHookURL);
+    return { portNumber: 4000, mongodbUri: '' }; // Fallback values
+  }
+};
+
+
 
 // Initialize Express app
 const app = express();
@@ -34,21 +49,34 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Start server
+const startServer = async () => {
+  try {
+    const { portNumber, mongodbUri } = await fetchRemoteConfig();
 
-//db.mongoose.connect(`mongodb://${dbConfig.HOST}:${dbConfig.PORT}/${dbConfig.DB}`)
-   db.mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(async (err) => {
-    console.log('Error connecting to MongoDB', err)
-    await slackLogger("Error connecting to MongoDB", err.message, err, null, webHookURL);
-  });
+    if (isNaN(portNumber)) {
+      throw new Error('PORT is not a valid number');
+    }
+    if (!mongodbUri) {
+      throw new Error('MongoDB URI is not a valid string');
+    }
 
-// Handle uncaught exceptions
-process.on('uncaughtException', async err => {
-  console.log('Caught uncaught exception: ', err);
-  await slackLogger("Uncaught Exception", err.message, err, null, webHookURL);
-  process.exit(1);
-});
+    // Connect to MongoDB
+    await mongoose.connect(mongodbUri);
+    console.log('Connected to MongoDB');
+
+    // Start Express server
+    app.listen(portNumber, () => {
+      console.log(`Server is running on port ${portNumber}.`);
+    });
+  } catch (error) {
+    console.error('Error starting server:', error);
+    await slackLogger("Error starting server", error.message, error, null, webHookURL);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -82,19 +110,10 @@ require('./app/routes/appointment.routes')(app);
 const about = require("./app/routes/about.routes");
 app.use('/api', about);
 
-
-  
-
 // Error handling middleware
 app.use(slackLogger);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send({ message: 'Internal Server Error', error: err.message });
-});
-
-// Start server
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}.`);
 });

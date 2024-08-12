@@ -1,4 +1,4 @@
-const config = require("../config/auth.config");
+const {getSecret} = require("../../firebase.js");
 const db = require("../models");
 const { slackLogger, webHookURL } = require("../middlewares/webHook");
 const User = db.user;
@@ -653,55 +653,51 @@ exports.resendOtpEmail = async (req, res) => {
   }
 };
 
-exports.signin = (req, res) => {
+
+exports.signin = async (req, res) => {
   console.log("req.body", req.body);
-  User.findOne({
-    email: req.body.email,
-  })
-    .populate("roles", "-__v")
-    .then((user) => {
-      if (!user) {
-        return res.status(404).send({ message: "User Not found." });
-      }
-      console.log("user.password: ", user.password);
-      const passwordIsValid = bcrypt.compareSync(
-        req.body.password,
-        user.password
-      );
 
-      if (!passwordIsValid) {
-        return res.status(401).send({
-          accessToken: null,
-          message: "Invalid Password!",
-        });
-      }
+  try {
+    const user = await User.findOne({ email: req.body.email })
+      .populate("roles", "-__v");
 
-      const token = jwt.sign({ id: user.id }, config.secret, {
-        algorithm: "HS256",
-        allowInsecureKeySizes: true,
+    if (!user) {
+      return res.status(404).send({ message: "User Not found." });
+    }
+
+    console.log("user.password: ", user.password);
+    const passwordIsValid = bcrypt.compareSync(req.body.password, user.password);
+
+    if (!passwordIsValid) {
+      return res.status(401).send({
+        accessToken: null,
+        message: "Invalid Password!",
       });
+    }
 
-      // const authorities = user.roles.map(role => `ROLE_${role.name.toUpperCase()}`);
-
-      // Assuming you have a field to store the token in the User model, you can update it like this:
-      user.accessToken = token;
-      user.loggedIn = true;
-      // Then save the updated user
-      user.save();
-
-      res.status(200).send({
-        message: `${user.username} logged in successfully!`,
-        id: user._id,
-        accessToken: token,
-        username: user.username,
-      });
-    })
-    .catch(async (err) => {
-      console.error("Error:", err);
-      res
-        .status(500)
-        .send({ message: "Internal Server Error", err: err.message });
+    const secret = await getSecret(); // Fetch JWT secret from Remote Config
+    const token = jwt.sign({ id: user.id }, secret, {
+      algorithm: "HS256",
+      allowInsecureKeySizes: true,
     });
+
+    // Assuming you have a field to store the token in the User model, you can update it like this:
+    user.accessToken = token;
+    user.loggedIn = true;
+    // Then save the updated user
+    await user.save();
+
+    res.status(200).send({
+      message: `${user.username} logged in successfully!`,
+      id: user._id,
+      accessToken: token,
+      username: user.username,
+    });
+
+  } catch (err) {
+    console.error("Error:", err);
+    res.status(500).send({ message: "Internal Server Error", err: err.message });
+  }
 };
 
 exports.updateUser = async (req, res) => {

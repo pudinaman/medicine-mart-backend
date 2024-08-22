@@ -4,7 +4,7 @@ const ObjectID = mongoose.Schema.Types.ObjectId
 const productSchema = new mongoose.Schema({
     owner : {
         type: ObjectID,
-        required: true,
+       // required: true,
         ref: 'User'
     },
     product_name: {

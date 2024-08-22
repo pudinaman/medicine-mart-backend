@@ -3,27 +3,19 @@ const User = require('../models/user.model');
 const slackLogger = require('../middlewares/webHook');
 
 exports.createProduct = async (req, res) => {
-    const userId = req.body.owner;
-
-    const user = await User.findById(userId);
-    if (!user) {
-        return res.status(404).send({ error: 'User not found' });
-    }
     try {
-        let productsToCreate = [];
-
-        if (Array.isArray(req.body)) {
-            productsToCreate = req.body;
-        } else {
-            productsToCreate.push(req.body);
-        }
+        // Check if the request body is an array or a single object
+        const productsToCreate = Array.isArray(req.body) ? req.body : [req.body];
+        
+        // Save each product to the database
         const createdProducts = [];
-
         for (const productData of productsToCreate) {
             const product = new Product(productData);
             await product.save();
             createdProducts.push(product);
         }
+
+        // Respond with the created products
         res.status(201).send(createdProducts);
     } catch (error) {
         console.error('Error creating product:', error);
